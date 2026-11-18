@@ -72,6 +72,23 @@ get() { # $1=仓库内相对路径 $2=本地落点
   return 1
 }
 
+# 带内容校验的下载：CDN（尤其 jsDelivr 的 @main）会缓存旧版本，
+# 拿到旧文件比下载失败更糟 —— 装上去的是几小时前的逻辑。
+# $2 是只有新版才有的标记串，命中才算下载成功。
+get_checked() { # $1=仓库内相对路径 $2=版本标记 $3=本地落点
+  for base in $SOURCES; do
+    [ -n "$base" ] || continue
+    say "  ← $base/$1"
+    if dl "$base/$1" "$3"; then
+      if [ -z "${2:-}" ] || grep -q "$2" "$3" 2>/dev/null; then
+        return 0
+      fi
+      say "    [!] 这份缺标记 [$2]，是旧版本，换下一个源"
+    fi
+  done
+  return 1
+}
+
 # ---------------------------------------------------------------- 3. 准备目录
 mkdir -p "$WORK/payload" || die "无法创建 $WORK"
 cd "$WORK" || die "进不去 $WORK"
@@ -88,7 +105,11 @@ fi
 # ---------------------------------------------------------------- 4. 拉文件
 hr
 say "[3] 下载组件"
-SMALL="armor.sh preflight/package.json preflight/lib/index.js preflight/install-preflight.sh tier-gate/package.json tier-gate/lib/index.js tier-gate/lib/client.js tier-gate/install-tier-gate.sh guard/guard.sh guard/guard.conf guard/guard-install.sh payload/prompt-inject.md"
+SMALL="preflight/package.json preflight/lib/index.js preflight/install-preflight.sh tier-gate/package.json tier-gate/lib/index.js tier-gate/lib/client.js tier-gate/install-tier-gate.sh guard/guard.sh guard/guard.conf guard/guard-install.sh payload/prompt-inject.md"
+
+# armor.sh 必须先装且必须是新版：用内容标记校验，挡住 CDN 缓存的旧文件
+get_checked armor.sh "is_aibase" armor.sh || die "armor.sh 下载失败或拿到的一直是旧版本。换源：ARMOR_MIRROR=https://raw.githubusercontent.com/$OWNER/$REPO/$BRANCH sh bootstrap.sh"
+
 for f in $SMALL; do
   mkdir -p "$(dirname "$f")"
   get "$f" "$f" || die "$f 下载失败。换镜像：ARMOR_MIRROR=<前缀> sh bootstrap.sh"
