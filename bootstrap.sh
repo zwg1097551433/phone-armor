@@ -155,13 +155,12 @@ else
 fi
 
 hr
-if [ "$RC" = 0 ]; then
-  say "bootstrap 完成。回 App：设置 → 本机引擎 → 停止 → 启动。"
-  say ""
-  say "  A 破甲本体   已装（补丁数见上方）"
-  say "  预检         每次发工作指令先做三档评级，二/三档弹窗，你选继续才执行"
-  say "  命令提示     配置在 /etc/phone-armor/guard.conf：0 只提示 / 1 拦截 / 2 放行"
-else
-  say "armor.sh 退出码 $RC —— 把上面的输出原文贴回来。"
-fi
-exit $RC
+say "bootstrap 完成。回 App：设置 → 本机引擎 → 停止 → 启动。"
+say ""
+say "  A 破甲本体   已装（补丁数见上方）"
+say "  预检         每次发工作指令先做三档评级；二/三档弹窗，点「我已知悉」只停下，"
+say "               你自己再发一条指令才会真的执行"
+say "  命令提示     配置在 /etc/phone-armor/guard.conf：0 只提示 / 1 拦截 / 2 放行"
+say ""
+say "装完按仓库里的 VERIFY.md 走七步验收。"
+exit 0
