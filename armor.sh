@@ -52,14 +52,16 @@ find_node() {
 }
 
 find_aibase() {
-  # 1) 固定候选。DSH Go 1.1.0 的 App 安装路径实测是 /opt/dsh-app/，
-  #    引擎启动参数里的 patch 也在 /opt/dsh-app/*.patch.yml，所以 @deepseek-ai 优先在这里找。
+  # 1) 固定候选。实机确认 DSH Go 1.1.0 的宿主在 /opt/dsh/node_modules/@deepseek-ai，
+  #    另外兼容 /opt/dsh-app/** 与 $DSH_HOME 下的运行时分发目录。
   for d in "${DSH_BASE:-}" \
+           /opt/dsh/node_modules/@deepseek-ai \
+           /opt/*/node_modules/@deepseek-ai \
+           /opt/*/*/node_modules/@deepseek-ai \
            /opt/dsh-app/node_modules/@deepseek-ai \
            /opt/dsh-app/engine/node_modules/@deepseek-ai \
            /opt/dsh-app/*/node_modules/@deepseek-ai \
            /opt/dsh-app/*/*/node_modules/@deepseek-ai \
-           /opt/dsh-app/*/*/*/node_modules/@deepseek-ai \
            "$H"/node_modules/@deepseek-ai \
            "$H"/dsh-runtimes/*/node_modules/@deepseek-ai \
            "$H"/profiles/*/node_modules/@deepseek-ai \
@@ -67,9 +69,9 @@ find_aibase() {
            /usr/lib/node_modules/@deepseek-ai; do
     [ -n "$d" ] && [ -d "$d/dsh-agent-instructions/lib" ] && { printf '%s' "$d"; return 0; }
   done
-  # 2) 兜底：只扫 /opt/dsh-app 和几个窄目录，深度 6，head 截断。
+  # 2) 兜底：只扫 /opt 和几个窄目录，深度 6，head 截断。
   #    不要在 $DSH_HOME 根上 find —— 那里有几千个 session 文件和 node_modules，手机上会卡几十秒。
-  for root in /opt/dsh-app "$H/node_modules" "$H/dsh-runtimes"; do
+  for root in /opt "$H/node_modules" "$H/dsh-runtimes"; do
     [ -d "$root" ] || continue
     for d in $(find "$root" -maxdepth 6 -type d -name '@deepseek-ai' 2>/dev/null | head -5); do
       [ -d "$d/dsh-agent-instructions/lib" ] && { printf '%s' "$d"; return 0; }
@@ -152,6 +154,37 @@ do_status() {
   purge_status | sed -n '/补丁 .* 已清洗/p;/注入状态/p'
 }
 
+# 合并注入正文：只插/更新 TIER-RULES 段，保留用户原有内容。
+# 与「打源码补丁」完全解耦 —— 只跑 merge_inject 不会拆掉审批和沙箱。
+merge_inject() {
+  [ -f "$INJ" ] || return 0
+  "$N" -e '
+    const fs = require("fs");
+    const [src, target] = process.argv.slice(1);
+    const B = "<!-- TIER-RULES:BEGIN -->", E = "<!-- TIER-RULES:END -->";
+    const payload = fs.readFileSync(src, "utf8");
+    const i0 = payload.indexOf(B), i1 = payload.indexOf(E);
+    let cur = "";
+    try { cur = fs.readFileSync(target, "utf8"); } catch {}
+    if (i0 < 0 || i1 <= i0) { fs.writeFileSync(target, payload); process.exit(0); }
+    const block = payload.slice(i0, i1 + E.length);
+    const j0 = cur.indexOf(B), j1 = cur.indexOf(E);
+    let out;
+    if (j0 >= 0 && j1 > j0) {
+      out = cur.slice(0, j0) + block + cur.slice(j1 + E.length);
+    } else if (cur.trim() === "") {
+      out = block + "\n";
+    } else {
+      const anchor = "<|im_start|>system:<project_instructions>";
+      const k = cur.indexOf(anchor);
+      out = k >= 0
+        ? cur.slice(0, k + anchor.length) + "\n\n" + block + "\n" + cur.slice(k + anchor.length)
+        : block + "\n\n" + cur;
+    }
+    fs.writeFileSync(target, out);
+  ' "$INJ" "$H/prompt-inject.md"
+}
+
 do_install() {
   banner
   [ -f "$TGZ" ] || die "缺少包：$TGZ"
@@ -225,31 +258,7 @@ do_install() {
 
   # --- 注入正文（合并模式：只插/更新 TIER-RULES 段，保留用户原有内容）---
   if [ -f "$INJ" ]; then
-    "$N" -e '
-      const fs = require("fs");
-      const [src, target] = process.argv.slice(1);
-      const B = "<!-- TIER-RULES:BEGIN -->", E = "<!-- TIER-RULES:END -->";
-      const payload = fs.readFileSync(src, "utf8");
-      const i0 = payload.indexOf(B), i1 = payload.indexOf(E);
-      let cur = "";
-      try { cur = fs.readFileSync(target, "utf8"); } catch {}
-      if (i0 < 0 || i1 <= i0) { fs.writeFileSync(target, payload); process.exit(0); }
-      const block = payload.slice(i0, i1 + E.length);
-      const j0 = cur.indexOf(B), j1 = cur.indexOf(E);
-      let out;
-      if (j0 >= 0 && j1 > j0) {
-        out = cur.slice(0, j0) + block + cur.slice(j1 + E.length);          // 已有 → 原地替换
-      } else if (cur.trim() === "") {
-        out = block + "\n";
-      } else {
-        const anchor = "<|im_start|>system:<project_instructions>";
-        const k = cur.indexOf(anchor);
-        out = k >= 0
-          ? cur.slice(0, k + anchor.length) + "\n\n" + block + "\n" + cur.slice(k + anchor.length)
-          : block + "\n\n" + cur;                                           // 保留用户内容
-      }
-      fs.writeFileSync(target, out);
-    ' "$INJ" "$H/prompt-inject.md" || die "写 prompt-inject.md 失败"
+    merge_inject || die "写 prompt-inject.md 失败"
     say "[6] prompt-inject.md 已合并（TIER-RULES 段 + 原有内容）→ $H/prompt-inject.md ($(wc -c < "$H/prompt-inject.md") 字节)"
   else
     say "[6] 包里没有 prompt-inject.md，跳过正文"
@@ -257,23 +266,36 @@ do_install() {
 
   # --- 应用 ---
   hr
-  say "[7] 应用补丁"
-  if [ -z "$AI" ]; then
-    say "    [!] 未定位 @deepseek-ai —— 试试 DSH_BASE=<含 dsh-agent-instructions/lib 的目录>"
-  elif ! writable "$AI"; then
-    say ""
-    say "[!] 宿主目录只读：$AI"
-    say "    在只读宿主上跑 apply，官方逻辑会把整份 DSH 复制到 ~/.local/share/dsh-purge/hosts/ 再打补丁，"
-    say "    而 App 启动的仍是 /opt/dsh-app 那份 —— 补丁不生效，还会白占一份空间。"
-    say "    先确认 App 允许写该目录，或用 DSH_BASE 指向一份可写的宿主副本后重跑。"
-    die "宿主只读，已在 apply 之前停止（package.json 与插件目录会保留，可用 revert 清理）"
+  if [ "${ARMOR_SKIP_APPLY:-0}" = "1" ]; then
+    say "[7] 跳过源码补丁（ARMOR_SKIP_APPLY=1）"
+    say "    插件已落位、注入正文已写 —— 运行时规则生效；"
+    say "    宿主源码不动，审批弹窗与沙箱拦截保持原样。"
+    APPLY_RC=0
+  else
+    say "[7] 应用补丁"
+    if [ -z "$AI" ]; then
+      say "    [!] 未定位 @deepseek-ai —— 试试 DSH_BASE=<含 dsh-agent-instructions/lib 的目录>"
+      say "        实机已知路径：/opt/dsh/node_modules/@deepseek-ai"
+    elif ! writable "$AI"; then
+      say ""
+      say "[!] 宿主目录只读：$AI"
+      say "    在只读宿主上跑 apply，官方逻辑会把整份 DSH 复制到 ~/.local/share/dsh-purge/hosts/ 再打补丁，"
+      say "    而 App 启动的仍是 /opt/dsh 那份 —— 补丁不生效，还会白占一份空间。"
+      say "    先确认 App 允许写该目录，或用 DSH_BASE 指向一份可写的宿主副本后重跑。"
+      say "    只想上规则不动源码：ARMOR_SKIP_APPLY=1 sh armor.sh install"
+      die "宿主只读，已在 apply 之前停止（可用 revert 清理已落位部分）"
+    fi
+    DSH_BASE="$AI" DSH_HOME="$H" "$N" "$DEST/bin/dsh-purge.js" --apply
+    APPLY_RC=$?
   fi
-  DSH_BASE="$AI" DSH_HOME="$H" "$N" "$DEST/bin/dsh-purge.js" --apply
-  APPLY_RC=$?
 
   # --- 自检 ---
   A=$(applied_count)
-  if [ -z "${A:-}" ] || [ "$A" -lt 1 ]; then
+  if [ "${ARMOR_SKIP_APPLY:-0}" = "1" ]; then
+    A=0
+    say ""
+    say "[8] 按 ARMOR_SKIP_APPLY=1 跳过补丁数自检（本来就没打补丁，0 条属预期）"
+  elif [ -z "${A:-}" ] || [ "$A" -lt 1 ]; then
     say ""
     say "[!] apply 之后读不到补丁数 → 还原 package.json（App 仍可正常启动）"
     cp -f "$BAK/package.json.orig" "$PJ"

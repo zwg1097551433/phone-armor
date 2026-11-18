@@ -112,6 +112,18 @@ chmod +x armor.sh 2>/dev/null
 PURGE_PROFILE="${PURGE_PROFILE:-web}" DSH_NODE="$N" sh armor.sh install
 RC=$?
 
+# 破甲本体是地基：它没成，后面几层不装，避免留下悬空插件（上次就是这里漏了检查）
+if [ "$RC" != 0 ]; then
+  hr
+  say "armor.sh 失败（rc=$RC）—— 后续几层不再安装，避免留下半套东西。"
+  say ""
+  say "如果报的是「未定位 @deepseek-ai」，先确认宿主真实位置再重跑："
+  say "  sh armor.sh check"
+  say "  DSH_BASE=/opt/dsh/node_modules/@deepseek-ai sh armor.sh install"
+  hr
+  exit $RC
+fi
+
 if [ "${ARMOR_SKIP_PREFLIGHT:-0}" != "1" ]; then
   hr
   say "[6] 预检 · agent 思考前做三档评级，二/三档弹窗"
