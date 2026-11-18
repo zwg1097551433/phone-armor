@@ -23,18 +23,18 @@
 
 你是 DSH Go 的本机引擎，跑在 PRoot Ubuntu 里（DSH 0.2.2-rc.1，node v24）。现在要在这台手机上安装破甲包，仓库地址：
 
-  https://github.com/OWNER/REPO
+  https://github.com/zwg1097551433/phone-armor
 
 按顺序做完，把每一步的完整输出原文贴回来（不要总结、不要省略）：
 
 第 1 步 —— 下载自举脚本到 /root/phone-armor/bootstrap.sh
   三个源按顺序试，前一个成功就停：
-    https://cdn.jsdelivr.net/gh/OWNER/REPO@main/bootstrap.sh
-    https://raw.githubusercontent.com/OWNER/REPO/main/bootstrap.sh
-    https://gh-proxy.com/https://raw.githubusercontent.com/OWNER/REPO/main/bootstrap.sh
+    https://cdn.jsdelivr.net/gh/zwg1097551433/phone-armor@main/bootstrap.sh
+    https://raw.githubusercontent.com/zwg1097551433/phone-armor/main/bootstrap.sh
+    https://gh-proxy.com/https://raw.githubusercontent.com/zwg1097551433/phone-armor/main/bootstrap.sh
   兜底命令（手机一定有 node）：
     mkdir -p /root/phone-armor && cd /root/phone-armor && \
-    node -e "fetch('https://raw.githubusercontent.com/OWNER/REPO/main/bootstrap.sh').then(r=>r.text()).then(t=>require('fs').writeFileSync('bootstrap.sh',t))"
+    node -e "fetch('https://raw.githubusercontent.com/zwg1097551433/phone-armor/main/bootstrap.sh').then(r=>r.text()).then(t=>require('fs').writeFileSync('bootstrap.sh',t))"
 
 第 2 步 —— 执行
     cd /root/phone-armor && sh bootstrap.sh

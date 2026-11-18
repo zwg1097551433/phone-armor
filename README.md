@@ -14,13 +14,13 @@
 请在你的 shell 里执行下面这条命令，然后把完整输出贴回来：
 
 mkdir -p /root/phone-armor && cd /root/phone-armor && \
-node -e "fetch('https://raw.githubusercontent.com/OWNER/REPO/main/bootstrap.sh').then(r=>r.text()).then(t=>require('fs').writeFileSync('bootstrap.sh',t))" && \
+node -e "fetch('https://raw.githubusercontent.com/zwg1097551433/phone-armor/main/bootstrap.sh').then(r=>r.text()).then(t=>require('fs').writeFileSync('bootstrap.sh',t))" && \
 sh bootstrap.sh
 ```
 
 或者自己在 App 的终端（Web 界面 `127.0.0.1:3080` 里的 terminal）里跑同样的三行。
 
-> 把 `OWNER/REPO` 换成实际仓库地址。国内网络拉不动 GitHub 时，`bootstrap.sh` 会自动依次尝试
+> 把 `zwg1097551433/phone-armor` 换成实际仓库地址。国内网络拉不动 GitHub 时，`bootstrap.sh` 会自动依次尝试
 > jsDelivr CDN、raw.githubusercontent、gh-proxy 三个源。
 
 装完回 App：**设置 → 本机引擎 → 停止 → 启动**。

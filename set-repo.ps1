@@ -20,15 +20,15 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 
 foreach ($f in @('bootstrap.sh', 'INSTALL-PROMPT.txt', 'README.md')) {
   $p = Join-Path $root $f
-  if (-not (Test-Path $p)) { Write-Warning "跳过（不存在）: $f"; continue }
+  if (-not (Test-Path $p)) { Write-Warning "skip (missing): $f"; continue }
   $orig = Get-Content $p -Raw -Encoding UTF8
   $t = $orig.Replace('CHANGE_ME', $Owner).Replace('OWNER/REPO', "$Owner/$Repo")
   if ($t -ne $orig) {
     $t = $t.Replace("`r`n", "`n")
     [System.IO.File]::WriteAllText($p, $t, $utf8)
-    Write-Host "已替换: $f"
+    Write-Host "patched: $f"
   }
-  else { Write-Host "无占位符: $f" }
+  else { Write-Host "no placeholder: $f" }
 }
 
 # 校验：仓库里所有 .sh（含子目录）必须是 LF

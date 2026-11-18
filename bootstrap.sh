@@ -14,7 +14,7 @@
 # 设计：不依赖 curl/wget/git —— 只用 node 内建 fetch 下载，node 算 SHA256。
 set -u
 
-OWNER="${ARMOR_OWNER:-CHANGE_ME}"
+OWNER="${ARMOR_OWNER:-zwg1097551433}"
 REPO="${ARMOR_REPO:-phone-armor}"
 BRANCH="${ARMOR_BRANCH:-main}"
 WORK="${ARMOR_DIR:-/root/phone-armor}"
@@ -29,7 +29,7 @@ hr
 say "phone-armor bootstrap  ($OWNER/$REPO@$BRANCH)"
 hr
 
-[ "$OWNER" = "CHANGE_ME" ] && die "仓库信息未设置。用 ARMOR_OWNER=你的用户名 ARMOR_REPO=仓库名 sh bootstrap.sh 重跑"
+[ -n "$OWNER" ] && [ -n "$REPO" ] || die "缺少仓库信息。用 ARMOR_OWNER=用户名 ARMOR_REPO=仓库名 sh bootstrap.sh 重跑"
 
 # ---------------------------------------------------------------- 1. node
 N="${DSH_NODE:-$(command -v node 2>/dev/null)}"
