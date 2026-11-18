@@ -1,0 +1,17 @@
+{
+  "name": "phone-armor-preflight",
+  "version": "1.0.0",
+  "description": "工作指令风险预检：agent 开始思考前用一次短 LLM 调用做三档评级，命中二/三档弹窗告知风险",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "files": [
+    "lib/index.js"
+  ]
+}

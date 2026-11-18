@@ -1,0 +1,14 @@
+# 强制 LF：Windows 上 commit 的 .sh 如果变成 CRLF，手机 `sh` 会报 "^M: not found"
+* text=auto eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+
+# payload 整体按二进制存：其中的 prompt-inject.md 是 CRLF，
+# 若被 text=auto 转成 LF，克隆后 SHA256SUMS.txt 里的校验值就对不上了。
+payload/* -text
+
+*.tgz binary
+*.png binary
+*.jpg binary

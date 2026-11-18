@@ -1,0 +1,27 @@
+{
+  "name": "phone-armor-tier-gate",
+  "version": "1.0.0",
+  "description": "手机能力边界闸门：首次进入会话时弹出三档能力说明，第三档红字警示",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "license": "MIT",
+  "files": [
+    "lib/index.js",
+    "lib/client.js"
+  ]
+}
