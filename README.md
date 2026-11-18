@@ -10,20 +10,22 @@
 
 在 DSH Go 里新建会话（确认主机是**本机**，不是远程），把下面整段发给它：
 
-```n请执行这条命令，把完整输出贴回来（就十几行）：
-
-sh -c "$(node -e "fetch('https://raw.githubusercontent.com/OWNER/REPO/main/deploy.sh').then(r=>r.text()).then(t=>process.stdout.write(t))")" | sh
 ```
-
-> deploy.sh 会自己探环境、装四层、判定结果，失败自动换方案重试，屏幕只留十几行结论。
-> 只想要规则层不动源码：sh deploy.sh --rules。
-
-手动两步版（自动模式失败时用）：
-
-```
-请在你的 shell 里执行下面这条命令，然后把完整输出贴回来：
+请执行这条命令，把完整输出贴回来（就十几行）：
 
 mkdir -p /root/phone-armor && cd /root/phone-armor && \
+node -e "fetch('https://raw.githubusercontent.com/zwg1097551433/phone-armor/main/deploy.sh').then(r=>r.text()).then(t=>require('fs').writeFileSync('deploy.sh',t))" && \
+sh deploy.sh
+```
+
+`deploy.sh` 会自己探环境、装四层、判定结果；失败时自动换方案重试，屏幕只留十几行结论。
+
+只想要规则层、不动宿主源码：`sh deploy.sh --rules`
+
+自动模式失败时再走手动两步版：
+
+```
+cd /root/phone-armor && \
 node -e "fetch('https://raw.githubusercontent.com/zwg1097551433/phone-armor/main/bootstrap.sh').then(r=>r.text()).then(t=>require('fs').writeFileSync('bootstrap.sh',t))" && \
 sh bootstrap.sh
 ```
