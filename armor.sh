@@ -324,6 +324,13 @@ do_install() {
   mkdir -p "$H/dsh-purge" 2>/dev/null
   printf 'ver=%s\napplied=%s\nrc=%s\nat=%s\nai=%s\nhome=%s\n' \
     "$VER" "$A" "$APPLY_RC" "$STAMP" "$AI" "$H" > "$MARK"
+
+  # 再写一次注入正文：重装/repair 时旧插件实例可能还在内存里，
+  # 它会在 apply 期间把 prompt-inject.md 覆盖回去（BUGS.md #10）。
+  # 这里补最后一刀，保证落盘的是我们这份。
+  if [ -f "$INJ" ]; then
+    merge_inject && say "[9] 注入正文已复核（防止运行中的旧实例回写覆盖）"
+  fi
   say ""
   hr
   say "完成：$A 条补丁已清洗（marker: $MARK）"

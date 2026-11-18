@@ -99,7 +99,17 @@ else
 fi
 hr
 
-say "清理完成。回 App：设置 → 本机引擎 → 停止 → 启动。"
+say "清理完成。"
+say ""
+say "⚠ 重要：引擎进程还活着，插件可能把 prompt-inject.md 再写回来（BUGS.md #10）。"
+say "   正确顺序是「先停 → 再删 → 再启动」："
+say ""
+say "     1. App → 设置 → 本机引擎 → 停止     ← 先杀掉进程，回写源才消失"
+say "     2. rm -f $H/prompt-inject.md"
+say "     3. App → 设置 → 本机引擎 → 启动"
+say ""
+say "   删完立刻重启会失败：重启过程中旧进程还活着，可能又写一次。"
+hr
 say ""
 say "重跑（二选一）："
 say "  完整：DSH_BASE=/opt/dsh/node_modules/@deepseek-ai sh armor.sh install"
