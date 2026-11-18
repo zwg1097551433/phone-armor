@@ -51,6 +51,12 @@ find_node() {
   return 1
 }
 
+# 判定一个目录是不是 @deepseek-ai 根。
+# 判据放宽：不同构建里 dsh-agent-instructions 的布局不一样，有 dsh 包就算命中。
+is_aibase() {
+  [ -f "$1/dsh/package.json" ] || [ -d "$1/dsh-agent-instructions/lib" ]
+}
+
 find_aibase() {
   # 1) 固定候选。实机确认 DSH Go 1.1.0 的宿主在 /opt/dsh/node_modules/@deepseek-ai，
   #    另外兼容 /opt/dsh-app/** 与 $DSH_HOME 下的运行时分发目录。
@@ -67,14 +73,14 @@ find_aibase() {
            "$H"/profiles/*/node_modules/@deepseek-ai \
            /usr/local/lib/node_modules/@deepseek-ai \
            /usr/lib/node_modules/@deepseek-ai; do
-    [ -n "$d" ] && [ -d "$d/dsh-agent-instructions/lib" ] && { printf '%s' "$d"; return 0; }
+    [ -n "$d" ] && is_aibase "$d" && { printf '%s' "$d"; return 0; }
   done
   # 2) 兜底：只扫 /opt 和几个窄目录，深度 6，head 截断。
   #    不要在 $DSH_HOME 根上 find —— 那里有几千个 session 文件和 node_modules，手机上会卡几十秒。
   for root in /opt "$H/node_modules" "$H/dsh-runtimes"; do
     [ -d "$root" ] || continue
     for d in $(find "$root" -maxdepth 6 -type d -name '@deepseek-ai' 2>/dev/null | head -5); do
-      [ -d "$d/dsh-agent-instructions/lib" ] && { printf '%s' "$d"; return 0; }
+      is_aibase "$d" && { printf '%s' "$d"; return 0; }
     done
   done
   return 1
@@ -142,6 +148,20 @@ do_check() {
   else
     say "  未安装（插件目录不存在）"
   fi
+
+  # 把「环境里到底有哪些 @deepseek-ai」直接打出来，省得靠猜
+  say ""
+  say "  [环境里实际存在的 @deepseek-ai 目录]"
+  found=0
+  for root in /opt "$H"; do
+    [ -d "$root" ] || continue
+    for d in $(find "$root" -maxdepth 5 -type d -name '@deepseek-ai' 2>/dev/null | head -6); do
+      if is_aibase "$d"; then say "    ✓ $d"; else say "    ? $d   (缺 dsh 包，不算宿主)"; fi
+      found=1
+    done
+  done
+  [ "$found" = 0 ] && say "    （一个都没有 —— 引擎可能还没初始化）"
+
   [ -f "$MARK" ] && { say ""; say "  marker:"; sed 's/^/    /' "$MARK"; }
   say ""
   df -h "$H" 2>/dev/null | sed 's/^/  /'
@@ -149,9 +169,8 @@ do_check() {
 }
 
 do_status() {
-  A=$(applied_count)
-  if [ -z "$A" ]; then say "未安装或无法读取补丁状态"; exit 1; fi
-  purge_status | sed -n '/补丁 .* 已清洗/p;/注入状态/p'
+  [ -f "$DEST/bin/dsh-purge.js" ] || die "未安装：$DEST 不存在（先跑 install）"
+  purge_status
 }
 
 # 合并注入正文：只插/更新 TIER-RULES 段，保留用户原有内容。
