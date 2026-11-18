@@ -25,6 +25,7 @@ for c in "$DIR/payload/prompt-inject.md" "$DIR/prompt-inject.md"; do
 done
 SHA="ae22bb7d1ac1e055102c8fbd24cf2eedc282a94bfa3fb09e7ab91226fc033058"
 VER="1.6.91"
+ENGINE_EXPECT="0.2.2-rc.1"
 PROFILE="${PURGE_PROFILE:-web}"
 CMD="${1:-install}"
 FORCE=""
@@ -105,6 +106,12 @@ applied_count() {
   purge_status 2>/dev/null | sed -n 's/.*补丁 \([0-9][0-9]*\)\/\([0-9][0-9]*\) 已清洗.*/\1/p' | head -1
 }
 
+# 读宿主引擎版本：$AI 是 @deepseek-ai 目录，里面应该有 dsh/
+engine_version() {
+  [ -n "${AI:-}" ] || return 1
+  "$N" -e 'try{process.stdout.write(String(require(process.argv[1]+"/package.json").version||"unknown"))}catch(e){process.stdout.write("unknown")}' "$AI/dsh" 2>/dev/null
+}
+
 banner() {
   hr
   say "dsh-purge $VER · 一键注入器（$CMD）"
@@ -113,7 +120,9 @@ banner() {
   say "  profile    $PROFILE"
   say "  node       $N ($("$N" -v 2>/dev/null))"
   say "  @deepseek-ai  ${AI:-未定位（apply 可能报缺宿主，用 DSH_BASE=... 指定）}"
-  if [ -n "$AI" ]; then
+  if [ -n "${AI:-}" ]; then
+    EV=$(engine_version)
+    say "  引擎版本   ${EV:-读取失败}（本包按 $ENGINE_EXPECT 校准）"
     if writable "$AI"; then say "  宿主可写性  ✓ 可写"; else say "  宿主可写性  ✗ 只读（apply 打不进去）"; fi
   fi
   say "  插件目录   $DEST"
@@ -147,6 +156,23 @@ do_install() {
   banner
   [ -f "$TGZ" ] || die "缺少包：$TGZ"
   [ -f "$PJ" ]  || die "profile 未初始化：$PJ（先在 App 里启动一次本机引擎）"
+
+  # --- 引擎版本门槛：不匹配不中止，但要讲清后果 ---
+  if [ -n "${AI:-}" ]; then
+    EV=$(engine_version)
+    case "${EV:-}" in
+      ""|unknown) : ;;
+      "$ENGINE_EXPECT") : ;;
+      *)
+        say ""
+        say "  [!] 本机引擎是 $EV，本包按 $ENGINE_EXPECT 校准。"
+        say "      补丁锚点是对着 $ENGINE_EXPECT 的真实源码写的，版本不同可能大量 pending。"
+        say "      继续装不会弄坏 App（失败会自动还原），但命中率会低。"
+        say "      想中止就现在 Ctrl-C。"
+        say ""
+        ;;
+    esac
+  fi
 
   # --- 幂等：已是目标版本且补丁数达标 → 跳过 ---
   if [ -z "$FORCE" ] && [ -f "$DEST/bin/dsh-purge.js" ]; then
