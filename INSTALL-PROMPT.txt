@@ -1,6 +1,42 @@
 手机上部署破甲 —— 完整操作单
 ================================
 
+========================================================
+最快路径：一句话交给 agent（推荐）
+========================================================
+
+把下面这段整段发给 DSH Go 里的 agent（确认主机是「本机」）：
+
+请执行这条命令，把完整输出贴回来（就十几行）：
+
+mkdir -p /root/phone-armor && cd /root/phone-armor && \
+node -e "fetch('https://raw.githubusercontent.com/zwg1097551433/phone-armor/main/deploy.sh').then(r=>r.text()).then(t=>require('fs').writeFileSync('deploy.sh',t))" && \
+sh deploy.sh
+
+它会自己探测环境、装四层、判定结果；失败时自动换方案重试。
+成功时最后一行是「部署完成」。
+
+如果它报未完成，再让它跑这两条：
+
+sh deploy.sh --log | tail -30
+cd /root/phone-armor && sh armor.sh status
+
+deploy.sh 的自愈逻辑：
+  · 自己找 node（PATH → /opt/dsh/bin → /opt/dsh-app/*）
+  · 自己找宿主 @deepseek-ai（固定候选 → 通配 → find 兜底）
+  · 宿主只读 → 自动切规则层模式（不打源码补丁）
+  · 补丁命中偏低 → 自动 repair 一次
+  · 全程日志写 deploy.log，屏幕只留结论
+
+只想要规则层、不动宿主源码：
+
+sh deploy.sh --rules
+
+========================================================
+以下是完整手动流程（自动模式失败时用）
+========================================================
+
+
 （按 DSH Go 1.1.0 实测环境写：引擎 DSH 0.2.2-rc.1 · Node v24.22.1 · App 路径 /opt/dsh-app/ · 端口 3080）
 
 
