@@ -1,10 +1,9 @@
 /**
  * phone-armor-settings — 浏览器半边
  *
- * 在 DSH 设置面板里注册一个「手机强化」分节，三个模块开关：
- *   · 核心（破甲 + 预检 + 命令提示）—— 只读，必装
- *   · 外部生图通道 —— 开/关
- *   · 提示词强化包 —— 开/关（改动 prompt-inject.md，需重启生效）
+ * 两处注册，覆盖两种宿主：
+ *   ① settings.section        网页版的设置面板（App 里会被降级成「在网页版打开」）
+ *   ② conversation.input.dock App 里可用 —— 输入框上方一个齿轮，点开浮层就是开关
  *
  * 状态读写走 host 侧挂的 /phone-armor/modules。
  */
@@ -20,7 +19,7 @@ window.__ModuleLoader__.load({
 
 		const inject = ["slots"];
 
-		/** 模块级缓存：跨组件挂载保留已读到的状态，避免每次切进来都重新请求。 */
+		/** 模块级缓存：组件反复挂载时不再重复请求（DSH 每次切进分节都会重挂） */
 		let panelCache = null;
 
 		const S = {
@@ -44,14 +43,44 @@ window.__ModuleLoader__.load({
 				position: "absolute", top: "3px", width: "20px", height: "20px", borderRadius: "50%",
 				background: "#fff", transition: "left .15s"
 			},
-			btn: {
-				padding: "10px 20px", fontSize: "14px", fontWeight: 600, color: "#fff",
-				background: "#3d6ef5", border: "none", borderRadius: "9px", cursor: "pointer"
-			},
 			msg: { marginTop: "10px", fontSize: "13px", lineHeight: 1.55, wordBreak: "break-all" },
 			ok: { color: "#7bd88f" },
 			bad: { color: "#ff9d9d" },
-			hint: { marginTop: "10px", fontSize: "12px", color: "#71787f", lineHeight: 1.55 }
+			hint: { marginTop: "10px", fontSize: "12px", color: "#71787f", lineHeight: 1.55 },
+
+			// —— dock 入口 ——
+			gear: {
+				display: "inline-flex", alignItems: "center", gap: "5px",
+				padding: "4px 9px", marginRight: "6px",
+				fontSize: "12.5px", color: "#8b9199",
+				background: "transparent", border: "1px solid #2c313a",
+				borderRadius: "8px", cursor: "pointer", lineHeight: 1.3
+			},
+			gearDot: { width: "6px", height: "6px", borderRadius: "50%", background: "#4a5563" },
+			gearDotOn: { background: "#4caf50" },
+
+			overlay: {
+				position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+				zIndex: 2147482000, background: "rgba(6,8,12,.86)",
+				display: "flex", alignItems: "center", justifyContent: "center", padding: "14px",
+				boxSizing: "border-box"
+			},
+			sheet: {
+				width: "100%", maxWidth: "560px", maxHeight: "86vh",
+				display: "flex", flexDirection: "column",
+				background: "#12141a", border: "1px solid #2c313a", borderRadius: "14px",
+				boxShadow: "0 18px 60px rgba(0,0,0,.6)", overflow: "hidden"
+			},
+			sheetHead: {
+				padding: "13px 16px 11px", display: "flex", alignItems: "center",
+				justifyContent: "space-between", borderBottom: "1px solid #23272f"
+			},
+			sheetTitle: { fontSize: "15.5px", fontWeight: 700, color: "#e8eaed" },
+			close: {
+				fontSize: "13px", color: "#b9bec7", background: "transparent",
+				border: "1px solid #333a44", borderRadius: "8px", padding: "6px 14px", cursor: "pointer"
+			},
+			sheetBody: { padding: "14px 16px", overflowY: "auto", WebkitOverflowScrolling: "touch" }
 		};
 
 		function Switch({ on, onChange, disabled }) {
@@ -59,7 +88,7 @@ window.__ModuleLoader__.load({
 				style: {
 					...S.switchBase,
 					background: on ? "#2e7d32" : "#333a44",
-					opacity: disabled ? 0.5 : 1,
+					opacity: disabled ? 0.45 : 1,
 					cursor: disabled ? "not-allowed" : "pointer"
 				},
 				onClick: () => { if (!disabled) onChange(!on); },
@@ -81,9 +110,8 @@ window.__ModuleLoader__.load({
 			);
 		}
 
-		function PhoneArmorPanel() {
-			// 模块级缓存：DSH 每次切进这个分节都会重新挂载组件，
-			// 没有缓存就会每次都发一遍请求 —— 表现为「停留一会又变加载页」。
+		/** 状态与读写：设置页和浮层共用。 */
+		function useModules() {
 			const [state, setState] = react.useState(() =>
 				panelCache
 					? { loading: false, modules: panelCache.modules, detect: panelCache.detect }
@@ -104,14 +132,17 @@ window.__ModuleLoader__.load({
 						setMsg({ ok: false, text: j.msg || "读取失败" });
 					}
 				} catch (e) {
-					// 失败也必须退出 loading，否则页面永远停在「读取中」
 					setState(s => ({ ...s, loading: false }));
 					setMsg({ ok: false, text: "读取失败：" + e.message });
 				}
 			}, []);
 
 			react.useEffect(() => {
-				if (panelCache) return;   // 已有缓存就不再请求
+				if (panelCache && panelCache.modules) {
+					// 有缓存也要在后台刷一次，但不清空界面
+					load();
+					return;
+				}
 				load();
 			}, [load]);
 
@@ -140,23 +171,29 @@ window.__ModuleLoader__.load({
 				}
 			}
 
+			return { state, busy, msg, save };
+		}
+
+		/** 三张卡片 + 保存反馈，设置页和浮层共用同一份。 */
+		function SettingsBody({ compact }) {
+			const { state, busy, msg, save } = useModules();
 			const m = state.modules || {};
 			const d = state.detect || {};
 
 			if (state.loading) {
-				return h("div", { style: S.wrap }, h("div", { style: S.intro }, "读取中…"));
+				return h("div", { style: S.intro }, "读取中…");
 			}
 
-			return h("div", { style: S.wrap },
+			return h("div", null,
 				h("div", { style: S.intro },
-					"这些是可选功能。核心无需配置，装上就能用；下面两项按需开启，不开完全不影响正常使用。"
+					"可选功能。核心装上就能用；下面两项按需开启，不开完全不影响正常使用。"
 				),
 
 				h(Card, {
 					title: "核心",
 					badge: d.purgeInstalled ? "已装" : "未装",
 					badgeOn: d.purgeInstalled,
-					desc: "破甲补丁 + 风险预检 + 命令提示 + 边界规则。必装项，不可关闭。",
+					desc: "破甲补丁 + 风险预检 + 命令提示 + 边界规则。必装，不可关闭。",
 					right: h(Switch, { on: true, disabled: true, onChange: () => {} })
 				}),
 
@@ -172,33 +209,72 @@ window.__ModuleLoader__.load({
 					title: "提示词强化包",
 					badge: m.boost ? "已开启" : "未开启",
 					badgeOn: m.boost,
-					desc: "把额外的创作准则和描述模板合并进系统提示（" + (d.injectSize || 0) + " 字节）。开启后需重启引擎生效。",
+					desc: "把额外的创作准则和描述模板合并进系统提示（当前 " + (d.injectSize || 0) + " 字节）。开启后需重启引擎生效。",
 					right: h(Switch, { on: !!m.boost, disabled: busy !== "", onChange: (v) => save({ boost: v }) })
 				}),
 
 				msg ? h("div", { style: { ...S.msg, ...(msg.ok ? S.ok : S.bad) } }, msg.text) : null,
 
-				h("div", { style: S.hint },
-					"状态存在 ~/.dsh/phone-armor/modules.json。命令行等价操作：sh armor.sh modules / ext on|off / boost on|off"
+				compact ? null : h("div", { style: S.hint },
+					"状态存在 ~/.dsh/phone-armor/modules.json。命令行等价：sh armor.sh modules"
 				)
 			);
 		}
 
+		/** ① 设置面板里的分节（网页版用） */
+		function PhoneArmorPanel() {
+			return h("div", { style: S.wrap }, h(SettingsBody, {}));
+		}
+
+		/** ② 输入框上方的齿轮入口 + 浮层（App 里用） */
+		function GearEntry() {
+			const [open, setOpen] = react.useState(false);
+			const { state } = useModules();
+			const m = state.modules || {};
+			const anyOn = !!m.ext || !!m.boost;
+
+			return h(react.Fragment, null,
+				h("button", {
+					style: S.gear,
+					onClick: () => setOpen(true),
+					title: "手机强化设置"
+				},
+					h("span", { style: { ...S.gearDot, ...(anyOn ? S.gearDotOn : {}) } }),
+					"手机强化"
+				),
+
+				open ? h("div", { style: S.overlay, role: "dialog", "aria-modal": "true" },
+					h("div", { style: S.sheet },
+						h("div", { style: S.sheetHead },
+							h("span", { style: S.sheetTitle }, "手机强化"),
+							h("button", { style: S.close, onClick: () => setOpen(false) }, "关闭")
+						),
+						h("div", { style: S.sheetBody }, h(SettingsBody, { compact: true }))
+					)
+				) : null
+			);
+		}
+
 		function apply(ctx) {
+			// 设置面板分节：网页版可见；App 里会被降级成「在网页版打开」，无副作用
 			ctx.slots.inject("settings.section", () =>
 				ctx.slots.register(
-					{
-						name: "settings.section",
-						id: "phone-armor",
-						order: 60,
-						label: () => "手机强化"
-					},
+					{ name: "settings.section", id: "phone-armor", order: 60, label: () => "手机强化" },
 					PhoneArmorPanel
+				)
+			);
+
+			// 输入框上方的齿轮：App 里也能用
+			ctx.slots.inject("conversation.input.dock", () =>
+				ctx.slots.register(
+					{ name: "conversation.input.dock", id: "phone-armor-gear", order: 5 },
+					GearEntry
 				)
 			);
 		}
 
 		exports.PhoneArmorPanel = PhoneArmorPanel;
+		exports.GearEntry = GearEntry;
 		exports.apply = apply;
 		exports.inject = inject;
 		return module.exports;
