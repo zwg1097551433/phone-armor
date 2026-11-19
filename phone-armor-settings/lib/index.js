@@ -32,6 +32,38 @@ function boostSource() {
   return path.join(paDir(), "boost.md");
 }
 
+/** 生图 API 凭据：和 tools/gen-config.mjs 用同一个文件，两边互通。 */
+function genConfPath() {
+  return path.join(os.homedir(), ".phone-armor", "gen.conf");
+}
+
+function readGenConf() {
+  try {
+    return JSON.parse(fs.readFileSync(genConfPath(), "utf8")) || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeGenConf(next) {
+  const p = genConfPath();
+  fs.mkdirSync(path.dirname(p), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(p, JSON.stringify(next, null, 2), { mode: 0o600 });
+  try { fs.chmodSync(p, 0o600); } catch {}
+}
+
+/** 对外只暴露"有没有配"，不回显 key 明文。 */
+function publicGenConf() {
+  const c = readGenConf();
+  return {
+    endpoint: c.endpoint || "",
+    model: c.model || "",
+    format: c.format === "novelai" ? "novelai" : "openai",
+    hasKey: !!c.key,
+    keyHint: c.key ? String(c.key).slice(0, 4) + "…" + String(c.key).slice(-4) : ""
+  };
+}
+
 const DEFAULTS = { core: true, ext: false, boost: false };
 
 function readModules() {
@@ -137,8 +169,9 @@ function localOnly(req) {
 }
 
 export function apply(ctx) {
-  ctx.inject(["webServer"], (host) => host.effect(() =>
-    host.webServer.register({
+  ctx.inject(["webServer"], (host) => host.effect(() => {
+    // ---- 模块开关 ----
+    const offModules = host.webServer.register({
       kind: "exact",
       path: "/phone-armor/modules",
       handler: async (req, res) => {
@@ -170,7 +203,6 @@ export function apply(ctx) {
             next.boost = body.boost;
           }
 
-          // core 不允许关掉（关了就没有预检和边界规则）
           next.core = true;
           writeModules(next);
 
@@ -185,6 +217,55 @@ export function apply(ctx) {
 
         return send(res, 405, { ok: false, msg: "只支持 GET / POST" });
       }
-    })
-  ));
+    });
+
+    // ---- 生图 API 凭据 ----
+    const offGenConf = host.webServer.register({
+      kind: "exact",
+      path: "/phone-armor/genconf",
+      handler: async (req, res) => {
+        if (!localOnly(req)) {
+          return send(res, 403, { ok: false, msg: "只允许本机访问" });
+        }
+
+        if (req.method === "GET") {
+          return send(res, 200, { ok: true, conf: publicGenConf() });
+        }
+
+        if (req.method === "POST") {
+          let body;
+          try {
+            body = JSON.parse((await readBody(req)) || "{}");
+          } catch (e) {
+            return send(res, 400, { ok: false, msg: "请求体不是 JSON：" + e.message });
+          }
+
+          const cur = readGenConf();
+          const next = {
+            format: body.format === "novelai" ? "novelai" : "openai",
+            endpoint: String(body.endpoint ?? cur.endpoint ?? "").trim(),
+            model: String(body.model ?? cur.model ?? "").trim(),
+            // 空字符串表示"不改"，保留原来保存的 key
+            key: body.key ? String(body.key).trim() : (cur.key || ""),
+            updatedAt: new Date().toISOString()
+          };
+
+          try {
+            writeGenConf(next);
+          } catch (e) {
+            return send(res, 500, { ok: false, msg: "写入失败：" + e.message });
+          }
+
+          return send(res, 200, { ok: true, conf: publicGenConf() });
+        }
+
+        return send(res, 405, { ok: false, msg: "只支持 GET / POST" });
+      }
+    });
+
+    return () => {
+      try { offModules(); } catch {}
+      try { offGenConf(); } catch {}
+    };
+  }));
 }
