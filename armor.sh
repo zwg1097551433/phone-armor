@@ -236,7 +236,18 @@ do_status() {
 
   hr
   say "  完整补丁明细：sh armor.sh status --detail"
-  hr
+
+  # 版本哨兵：被 DSH 的插件更新换成别的版本就报警
+  INSTALLED_VER=""
+  [ -f "$DEST/package.json" ] && INSTALLED_VER=$("$N" -e 'try{process.stdout.write(require(process.argv[1]).version||"")}catch{}' "$DEST/package.json" 2>/dev/null)
+  if [ -n "${INSTALLED_VER:-}" ] && [ "$INSTALLED_VER" != "$VER" ]; then
+    hr
+    say "  ⚠ 插件版本被改动：$INSTALLED_VER（本包校准版为 $VER）"
+    say "    多半是在 DSH 里点了「更新插件」。1.7.x 的锚点按引擎 rc.3 校准，"
+    say "    在 rc.1 上会大幅降级。恢复方式："
+    say "      cd /root/phone-armor && sh armor.sh repair"
+    hr
+  fi
 }
 
 # 合并注入正文：只插/更新 TIER-RULES 段，保留用户原有内容。
