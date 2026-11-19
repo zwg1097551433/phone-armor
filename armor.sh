@@ -26,6 +26,7 @@ done
 SHA="ae22bb7d1ac1e055102c8fbd24cf2eedc282a94bfa3fb09e7ab91226fc033058"
 VER="1.6.91"
 ENGINE_EXPECT="0.2.2-rc.1"
+ENGINE_MIN="0.2.1-rc.2"
 PROFILE="${PURGE_PROFILE:-web}"
 CMD="${1:-install}"
 FORCE=""
@@ -130,7 +131,7 @@ banner() {
   say "  @deepseek-ai  ${AI:-未定位（apply 可能报缺宿主，用 DSH_BASE=... 指定）}"
   if [ -n "${AI:-}" ]; then
     EV=$(engine_version)
-    say "  引擎版本   ${EV:-读取失败}（本包按 $ENGINE_EXPECT 校准）"
+    say "  引擎版本   ${EV:-读取失败}（本包按 $ENGINE_EXPECT 校准，最低 $ENGINE_MIN）"
     if writable "$AI"; then say "  宿主可写性  ✓ 可写"; else say "  宿主可写性  ✗ 只读（apply 打不进去）"; fi
   fi
   say "  插件目录   $DEST"
@@ -139,6 +140,8 @@ banner() {
 # ---------------------------------------------------------------- 子命令
 do_check() {
   banner
+  say "  只读探测：仅检测环境与可打补丁的文件，不会修改任何内容。"
+  say ""
   if [ -f "$DEST/bin/dsh-purge.js" ]; then
     say "  已安装：$("$N" -p 'require("'$DEST'/package.json").version' 2>/dev/null)"
     say ""
@@ -170,7 +173,70 @@ do_check() {
 
 do_status() {
   [ -f "$DEST/bin/dsh-purge.js" ] || die "未安装：$DEST 不存在（先跑 install）"
-  purge_status
+
+  hr
+  say "手机强化自检"
+  say "  （只读：不修改任何文件）"
+  hr
+
+  # ① 破甲补丁
+  A=$(applied_count)
+  if [ -n "${A:-}" ] && [ "$A" -ge 60 ]; then
+    say "  ① 破甲补丁      $A/86 命中       ✅ 主干在（审批6 + 沙箱5 + 提权3 + 提示管线6）"
+  elif [ -n "${A:-}" ] && [ "$A" -ge 1 ]; then
+    say "  ① 破甲补丁      $A/86 命中       ⚠ 偏低，锚点可能漂移"
+  else
+    say "  ① 破甲补丁      ${A:-0}/86 命中       ❌ 未命中"
+  fi
+
+  # ② 注入正文是否落盘
+  if [ -f "$H/prompt-inject.md" ]; then
+    SZ=$(wc -c < "$H/prompt-inject.md")
+    if [ "$SZ" -gt 1000 ]; then
+      say "  ② 注入正文      $SZ 字节        ✅ 已落盘"
+    else
+      say "  ② 注入正文      $SZ 字节        ⚠ 过小，可能没合并成功"
+    fi
+  else
+    say "  ② 注入正文      不存在          ❌ 缺失"
+  fi
+
+  # ③ 注入是否到达模型（probe）
+  PROBE="$H/dsh-purge/probe.json"
+  if [ -f "$PROBE" ]; then
+    N_U=$(sed -n 's/.*"nonce":"\([^"]*\)".*/\1/p' "$PROBE" 2>/dev/null | head -1)
+    A_T=$(sed -n 's/.*"at":\([0-9]*\).*/\1/p' "$PROBE" 2>/dev/null | head -1)
+    say "  ③ 注入到达模型  probe ${N_U:-存在}     ⬜ 需要发一句话看模型是否回显"
+  else
+    say "  ③ 注入到达模型  未生成 probe     ⬜ 跑：community.js probe new"
+  fi
+
+  # ④ 风险预检
+  if [ -d "$H/profiles/$PROFILE/node_modules/phone-armor-preflight" ] &&
+     grep -q phone-armor-preflight "$H/profiles/$PROFILE/cordis.patch.yml" 2>/dev/null; then
+    say "  ④ 风险预检      已注册          ✅"
+  else
+    say "  ④ 风险预检      未注册          ❌"
+  fi
+
+  # ⑤ 命令提示
+  if [ -x /opt/phone-armor/guard.sh ]; then
+    say "  ⑤ 命令提示      已装            ✅ 默认只提示不拦截"
+  else
+    say "  ⑤ 命令提示      未装            ⬜"
+  fi
+
+  # ⑥ 设置页
+  if [ -d "$H/profiles/$PROFILE/node_modules/phone-armor-settings" ] &&
+     grep -q phone-armor-settings "$H/profiles/$PROFILE/cordis.patch.yml" 2>/dev/null; then
+    say "  ⑥ 设置页        已注册          ✅"
+  else
+    say "  ⑥ 设置页        未注册          ⬜"
+  fi
+
+  hr
+  say "  完整补丁明细：sh armor.sh status --detail"
+  hr
 }
 
 # 合并注入正文：只插/更新 TIER-RULES 段，保留用户原有内容。
@@ -385,7 +451,14 @@ do_revert() {
 
 case "$CMD" in
   check)   do_check ;;
-  status)  do_status ;;
+  status)
+    if [ "${2:-}" = "--detail" ]; then
+      [ -f "$DEST/bin/dsh-purge.js" ] || die "未安装"
+      purge_status
+    else
+      do_status
+    fi
+    ;;
   install) do_install ;;
   revert)  do_revert ;;
   *) say "用法：sh armor.sh [check|install|repair|status|revert]"; exit 1 ;;

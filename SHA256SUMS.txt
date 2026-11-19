@@ -1,2 +1,2 @@
 ae22bb7d1ac1e055102c8fbd24cf2eedc282a94bfa3fb09e7ab91226fc033058  payload/dsh-purge-community-1.6.91.tgz
-b1421ea0810bd7d8a71bf1bb87a5d88b482e52fc408aec5113f4372a7c227ffe  payload/prompt-inject.md
+719edb0ef465c99446eb6ab189de8d05203e65e6b176011fef5917da699b1fdf  payload/prompt-inject.md
