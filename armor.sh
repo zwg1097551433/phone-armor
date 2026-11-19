@@ -283,6 +283,30 @@ do_install() {
     say "[6] 包里没有 prompt-inject.md，跳过正文"
   fi
 
+  # --- 写入 dsh-purge 调优配置（决定破甲效果强弱，缺失时补）---
+  # 关键三项：
+  #   injectPosition=both  注入放头部+尾部（长对话里头部会被稀释，尾部权重更高）
+  #   refusalRetry=true    检测到拒绝就带着加固语重试一次（官方默认 off）
+  #   boost=true           启用尾部强化段
+  # 缺了这三项，66 条补丁的打折效果会非常明显。
+  TUNE="$H/dsh-purge/tuning.json"
+  if [ ! -f "$TUNE" ]; then
+    mkdir -p "$H/dsh-purge" 2>/dev/null
+    cat > "$TUNE" <<'TUNEEOF'
+{
+  "boost": true,
+  "injectPosition": "both",
+  "askNoBlock": true,
+  "rewind": true,
+  "refusalRetry": true,
+  "extraPatches": []
+}
+TUNEEOF
+    say "[6.5] tuning.json 已写入（injectPosition=both / refusalRetry=true / boost=true）"
+  else
+    say "[6.5] tuning.json 已存在，保留用户配置（$TUNE）"
+  fi
+
   # --- 应用 ---
   hr
   if [ "${ARMOR_SKIP_APPLY:-0}" = "1" ]; then
