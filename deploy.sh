@@ -118,8 +118,8 @@ fi
 # ---------------------------------------------------------------- 5. 判定 + 自愈
 step 5 "补丁"
 read_applied() {
-  DSH_BASE="$AI" sh "$WORK/armor.sh" status 2>/dev/null |
-    sed -n 's/.*补丁 \([0-9][0-9]*\)\/\([0-9][0-9]*\) 已清洗.*/\1/p' | head -1
+  # 用 armor.sh applied 拿纯数字，不再依赖 status 的显示格式
+  DSH_BASE="$AI" sh "$WORK/armor.sh" applied 2>/dev/null | head -1
 }
 A=$(read_applied)
 

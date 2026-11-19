@@ -450,6 +450,7 @@ do_revert() {
 }
 
 case "$CMD" in
+  applied) A=$(applied_count); printf '%s' "${A:-0}" ; echo ;;
   check)   do_check ;;
   status)
     if [ "${2:-}" = "--detail" ]; then
