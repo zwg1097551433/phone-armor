@@ -59,28 +59,34 @@ window.__ModuleLoader__.load({
 			gearDot: { width: "6px", height: "6px", borderRadius: "50%", background: "#c9cfd8" },
 			gearDotOn: { background: "#34a853" },
 
+			// 全屏不透明：打开后完全盖住聊天界面，像一个独立页面
 			overlay: {
 				position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-				zIndex: 2147482000, background: "rgba(20, 24, 30, 0.34)",
-				display: "flex", alignItems: "center", justifyContent: "center", padding: "14px",
+				zIndex: 2147482000, background: "#ffffff",
+				display: "flex", flexDirection: "column",
 				boxSizing: "border-box"
 			},
 			sheet: {
-				width: "100%", maxWidth: "560px", maxHeight: "86vh",
+				width: "100%", height: "100%",
 				display: "flex", flexDirection: "column",
-				background: "#ffffff", border: "1px solid #e8ebf0", borderRadius: "16px",
-				boxShadow: "0 18px 50px rgba(17,24,39,.22)", overflow: "hidden"
+				background: "#ffffff"
 			},
 			sheetHead: {
+				flexShrink: 0,
 				padding: "14px 16px 12px", display: "flex", alignItems: "center",
-				justifyContent: "space-between", borderBottom: "1px solid #eef1f5"
+				justifyContent: "space-between", borderBottom: "1px solid #eef1f5",
+				paddingTop: "max(14px, env(safe-area-inset-top))"
 			},
-			sheetTitle: { fontSize: "15.5px", fontWeight: 700, color: "#111418" },
+			sheetTitle: { fontSize: "16px", fontWeight: 700, color: "#111418" },
 			close: {
 				fontSize: "13px", color: "#4b5563", background: "#fff",
 				border: "1px solid #dfe3e9", borderRadius: "8px", padding: "6px 14px", cursor: "pointer"
 			},
-			sheetBody: { padding: "14px 16px 16px", overflowY: "auto", WebkitOverflowScrolling: "touch" }
+			sheetBody: {
+				flex: 1, minHeight: 0,
+				padding: "14px 16px 24px", overflowY: "auto", WebkitOverflowScrolling: "touch",
+				paddingBottom: "calc(24px + env(safe-area-inset-bottom))"
+			}
 		};
 
 		function Switch({ on, onChange, disabled }) {
