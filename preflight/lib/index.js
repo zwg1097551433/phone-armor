@@ -37,6 +37,23 @@ const TIER_SYSTEM = `你是手机端能力预检器。设备：DSH Go 本机引�
 
 tier 只能是 1、2、3 之一。alt 对第一档写「无需替代」。`;
 
+/** 明显属于本机跑不动的工作：出现这些词，直接判第三档，不花 token 也不给误判空间。 */
+const HARD_LOCAL = /(本地|本机|这台手机|手机上跑|diffusion|stable\s?diffusion|comfyui|sd\s?模型|本地模型|本地大模型|大模型推理|llm\s?推理|训练模型|微调|渲染|4k|8k)/i;
+/** 但如果是「写/讲解/比较」这类纯文本请求，不算 —— 写代码是第一档。 */
+const WRITE_ONLY = /(写|实现|示例|代码|脚本|教程|怎么|如何|解释|原理|区别|对比|review|阅读)/i;
+
+/** 关键词直判。命中返回 verdict，否则返回 null 交给 LLM。 */
+function hardTier(text) {
+  if (!HARD_LOCAL.test(text)) return null;
+  if (WRITE_ONLY.test(text)) return null;
+  return {
+    tier: 3,
+    work: "本地推理/渲染类任务",
+    why: "手机没有 GPU，单进程内存 2–4 GB，本地跑模型会直接 OOM 或被系统杀掉，表现为 App 闪退或手机卡死",
+    alt: "改走云端 API（要联网、走流量），或到电脑上做"
+  };
+}
+
 /** 从 messages 里抠出用户文本。 */
 function extractText(value, out = [], depth = 0) {
   if (depth > 8 || value == null) return out;
@@ -240,7 +257,7 @@ export function apply(ctx, config = {}) {
     const text = extractText(messages).join("\n").trim();
     if (text.length < cfg.minLength) return next();
 
-    const verdict = await grade(text, modelSelection, signal);
+    const verdict = hardTier(text) || (await grade(text, modelSelection, signal));
     if (!verdict || verdict.tier < cfg.askAtOrAbove) return next();
 
     let result;
