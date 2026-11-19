@@ -385,6 +385,24 @@ TUNEEOF
     say "[6.5] tuning.json 已存在，保留用户配置（$TUNE）"
   fi
 
+  # --- 关掉自动更新检查 ---
+  # dsh-purge 是第三方项目（kingcharleslzy-ai/dsh-purge），它自带的 update.js
+  # 会定期问 GitHub releases。一旦用户在 DSH 里点「更新插件」，1.7.x 会整包覆盖，
+  # 而 1.7.x 的锚点按引擎 rc.3 校准，在 rc.1 上会大幅降级。
+  UPD="$H/dsh-purge/update-preferences.json"
+  if [ ! -f "$UPD" ]; then
+    cat > "$UPD" <<'UPDEOF'
+{
+  "autoCheck": false,
+  "autoInstall": false,
+  "intervalHours": 24
+}
+UPDEOF
+    say "[6.6] 已关闭 dsh-purge 自动更新检查（防止误升级到不适配版本）"
+  fi
+  # 清掉已有的“有新版本”提示，避免用户看到就去点
+  rm -f "$H/dsh-purge/update-status.json" 2>/dev/null
+
   # --- 应用 ---
   hr
   if [ "${ARMOR_SKIP_APPLY:-0}" = "1" ]; then
