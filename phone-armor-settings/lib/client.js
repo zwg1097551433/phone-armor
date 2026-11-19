@@ -20,6 +20,9 @@ window.__ModuleLoader__.load({
 
 		const inject = ["slots"];
 
+		/** 模块级缓存：跨组件挂载保留已读到的状态，避免每次切进来都重新请求。 */
+		let panelCache = null;
+
 		const S = {
 			wrap: { padding: "4px 2px 12px", maxWidth: "620px" },
 			intro: { fontSize: "13px", color: "#8b9199", lineHeight: 1.6, marginBottom: "14px" },
@@ -79,7 +82,13 @@ window.__ModuleLoader__.load({
 		}
 
 		function PhoneArmorPanel() {
-			const [state, setState] = react.useState({ loading: true, modules: { core: true, ext: false, boost: false }, detect: {} });
+			// 模块级缓存：DSH 每次切进这个分节都会重新挂载组件，
+			// 没有缓存就会每次都发一遍请求 —— 表现为「停留一会又变加载页」。
+			const [state, setState] = react.useState(() =>
+				panelCache
+					? { loading: false, modules: panelCache.modules, detect: panelCache.detect }
+					: { loading: true, modules: { core: true, ext: false, boost: false }, detect: {} }
+			);
 			const [busy, setBusy] = react.useState("");
 			const [msg, setMsg] = react.useState(null);
 
@@ -87,14 +96,24 @@ window.__ModuleLoader__.load({
 				try {
 					const r = await fetch("/phone-armor/modules", { headers: { Accept: "application/json" } });
 					const j = await r.json();
-					if (j.ok) setState({ loading: false, modules: j.modules, detect: j.detect || {} });
-					else setMsg({ ok: false, text: j.msg || "读取失败" });
+					if (j.ok) {
+						panelCache = { modules: j.modules, detect: j.detect || {} };
+						setState({ loading: false, modules: j.modules, detect: j.detect || {} });
+					} else {
+						setState(s => ({ ...s, loading: false }));
+						setMsg({ ok: false, text: j.msg || "读取失败" });
+					}
 				} catch (e) {
+					// 失败也必须退出 loading，否则页面永远停在「读取中」
+					setState(s => ({ ...s, loading: false }));
 					setMsg({ ok: false, text: "读取失败：" + e.message });
 				}
 			}, []);
 
-			react.useEffect(() => { load(); }, [load]);
+			react.useEffect(() => {
+				if (panelCache) return;   // 已有缓存就不再请求
+				load();
+			}, [load]);
 
 			async function save(patch) {
 				setBusy(JSON.stringify(patch));
@@ -107,6 +126,7 @@ window.__ModuleLoader__.load({
 					});
 					const j = await r.json();
 					if (j.ok) {
+						panelCache = { modules: j.modules, detect: j.detect || {} };
 						setState({ loading: false, modules: j.modules, detect: j.detect || {} });
 						const extra = j.note ? "（" + j.note + "）" : "";
 						setMsg({ ok: true, text: "已保存" + extra });
