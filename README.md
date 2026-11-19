@@ -97,6 +97,10 @@ ARMOR_SKIP_GUARD=1 sh bootstrap.sh       # 只要破甲 + 预检
 **任何情况下装坏都能救**：脚本会备份 `package.json` 与 `prompt-inject.md`，
 apply 后读不到补丁数就自动还原。App 起不来时用「设置 → 以安全模式启动」进去卸插件。
 
+## 破甲到底能做什么
+
+[CAPABILITIES.md](CAPABILITIES.md) 按补丁编号逐条列出 88 条补丁的作用、在手机上是否适用、怎么验证。
+
 ## 出问题先看这个
 
 [VERIFY.md](VERIFY.md) 有七步验收清单，每步写明「期望看到什么 / 不对怎么办」。
