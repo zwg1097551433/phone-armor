@@ -17,10 +17,39 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		const h = react.createElement;
 
+		// 用 Portal 把全屏浮层挂到 body 上。
+		// 原因：DSH 把 dock 插槽放在带 transform 的容器里，祖先有 transform 时
+		// position:fixed 会退化成相对该容器定位 —— 浮层只能占下半屏。
+		let createPortal = null;
+		try {
+			const rd = require("react-dom");
+			createPortal = rd.createPortal || (rd.default && rd.default.createPortal) || null;
+		} catch {
+			createPortal = null;
+		}
+
 		const inject = ["slots"];
 
-		/** 模块级缓存：组件反复挂载时不再重复请求（DSH 每次切进分节都会重挂） */
+		/** 模块级缓存 + localStorage 持久化：组件反复挂载时不再回到骨架屏 */
 		let panelCache = null;
+		const LS_KEY = "phone-armor.modules.v1";
+
+		function readLocal() {
+			try {
+				const raw = window.localStorage.getItem(LS_KEY);
+				return raw ? JSON.parse(raw) : null;
+			} catch {
+				return null;
+			}
+		}
+
+		function writeLocal(value) {
+			try {
+				window.localStorage.setItem(LS_KEY, JSON.stringify(value));
+			} catch {
+				/* 隐私模式写不进去就算了 */
+			}
+		}
 
 		const S = {
 			wrap: { padding: "4px 2px 12px", maxWidth: "620px" },
@@ -118,11 +147,15 @@ window.__ModuleLoader__.load({
 
 		/** 状态与读写：设置页和浮层共用。 */
 		function useModules() {
-			const [state, setState] = react.useState(() =>
-				panelCache
-					? { loading: false, modules: panelCache.modules, detect: panelCache.detect }
-					: { loading: true, modules: { core: true, ext: false, boost: false }, detect: {} }
-			);
+			// 初始状态按「本地缓存 → 模块缓存 → 默认值」取，永远不回到骨架屏。
+			// 之前每次打开都要转圈，就是因为初始 loading 直接设成了 true。
+			const [state, setState] = react.useState(() => {
+				const cached = panelCache || readLocal();
+				if (cached && cached.modules) {
+					return { loading: false, modules: cached.modules, detect: cached.detect || {} };
+				}
+				return { loading: false, modules: { core: true, ext: false, boost: false }, detect: {} };
+			});
 			const [busy, setBusy] = react.useState("");
 			const [msg, setMsg] = react.useState(null);
 
@@ -131,26 +164,22 @@ window.__ModuleLoader__.load({
 					const r = await fetch("/phone-armor/modules", { headers: { Accept: "application/json" } });
 					const j = await r.json();
 					if (j.ok) {
-						panelCache = { modules: j.modules, detect: j.detect || {} };
-						setState({ loading: false, modules: j.modules, detect: j.detect || {} });
+						const next = { modules: j.modules, detect: j.detect || {} };
+						panelCache = next;
+						writeLocal(next);
+						setState({ loading: false, modules: next.modules, detect: next.detect });
 					} else {
 						setState(s => ({ ...s, loading: false }));
 						setMsg({ ok: false, text: j.msg || "读取失败" });
 					}
 				} catch (e) {
+					// 静默失败：界面已经有缓存内容，不打断用户
 					setState(s => ({ ...s, loading: false }));
-					setMsg({ ok: false, text: "读取失败：" + e.message });
+					setMsg({ ok: false, text: "同步失败（显示的是上次的状态）：" + e.message });
 				}
 			}, []);
 
-			react.useEffect(() => {
-				if (panelCache && panelCache.modules) {
-					// 有缓存也要在后台刷一次，但不清空界面
-					load();
-					return;
-				}
-				load();
-			}, [load]);
+			react.useEffect(() => { load(); }, [load]);
 
 			async function save(patch) {
 				setBusy(JSON.stringify(patch));
@@ -163,8 +192,10 @@ window.__ModuleLoader__.load({
 					});
 					const j = await r.json();
 					if (j.ok) {
-						panelCache = { modules: j.modules, detect: j.detect || {} };
-						setState({ loading: false, modules: j.modules, detect: j.detect || {} });
+						const next = { modules: j.modules, detect: j.detect || {} };
+						panelCache = next;
+						writeLocal(next);
+						setState({ loading: false, modules: next.modules, detect: next.detect });
 						const extra = j.note ? "（" + j.note + "）" : "";
 						setMsg({ ok: true, text: "已保存" + extra });
 					} else {
@@ -232,12 +263,22 @@ window.__ModuleLoader__.load({
 			return h("div", { style: S.wrap }, h(SettingsBody, {}));
 		}
 
-		/** ② 输入框上方的齿轮入口 + 浮层（App 里用） */
+		/** ② 输入框上方的齿轮入口 + 全屏浮层（App 里用） */
 		function GearEntry() {
 			const [open, setOpen] = react.useState(false);
 			const { state } = useModules();
 			const m = state.modules || {};
 			const anyOn = !!m.ext || !!m.boost;
+
+			const panel = h("div", { style: S.overlay, role: "dialog", "aria-modal": "true" },
+				h("div", { style: S.sheet },
+					h("div", { style: S.sheetHead },
+						h("span", { style: S.sheetTitle }, "手机强化"),
+						h("button", { style: S.close, onClick: () => setOpen(false) }, "关闭")
+					),
+					h("div", { style: S.sheetBody }, h(SettingsBody, { compact: true }))
+				)
+			);
 
 			return h(react.Fragment, null,
 				h("button", {
@@ -249,15 +290,12 @@ window.__ModuleLoader__.load({
 					"手机强化"
 				),
 
-				open ? h("div", { style: S.overlay, role: "dialog", "aria-modal": "true" },
-					h("div", { style: S.sheet },
-						h("div", { style: S.sheetHead },
-							h("span", { style: S.sheetTitle }, "手机强化"),
-							h("button", { style: S.close, onClick: () => setOpen(false) }, "关闭")
-						),
-						h("div", { style: S.sheetBody }, h(SettingsBody, { compact: true }))
-					)
-				) : null
+				// Portal 到 body：绕开 dock 容器的 transform，浮层才能真的全屏
+				open
+					? (createPortal && document && document.body
+						? createPortal(panel, document.body)
+						: panel)
+					: null
 			);
 		}
 
