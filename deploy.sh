@@ -109,6 +109,11 @@ else
   sh bootstrap.sh >>"$LOG" 2>&1
 fi
 RC=$?
+if [ "$RC" = 0 ]; then
+  ok "完成（细节见 deploy.log）"
+else
+  bad "失败 rc=$RC（见 deploy.log）"
+fi
 
 # ---------------------------------------------------------------- 5. 判定 + 自愈
 step 5 "补丁"
