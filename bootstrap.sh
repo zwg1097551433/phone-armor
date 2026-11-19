@@ -61,7 +61,9 @@ dl() { # $1=url $2=out
 BASE_CDN="https://cdn.jsdelivr.net/gh/$OWNER/$REPO@$BRANCH"
 BASE_RAW="https://raw.githubusercontent.com/$OWNER/$REPO/$BRANCH"
 BASE_GHQ="https://gh-proxy.com/https://raw.githubusercontent.com/$OWNER/$REPO/$BRANCH"
-SOURCES="${ARMOR_MIRROR:-} $BASE_CDN $BASE_RAW $BASE_GHQ"
+# raw 排第一：jsDelivr 的 @main 有缓存，会把旧版发过来（BUGS #11）。
+# CDN 留作兜底，配合 get_checked 的内容校验，两条路都拿不到新版才会失败。
+SOURCES="${ARMOR_MIRROR:-} $BASE_RAW $BASE_CDN $BASE_GHQ"
 
 get() { # $1=仓库内相对路径 $2=本地落点
   for base in $SOURCES; do
