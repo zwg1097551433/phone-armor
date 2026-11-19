@@ -37,21 +37,37 @@ const TIER_SYSTEM = `你是手机端能力预检器。设备：DSH Go 本机引�
 
 tier 只能是 1、2、3 之一。alt 对第一档写「无需替代」。`;
 
-/** 明显属于本机跑不动的工作：出现这些词，直接判第三档，不花 token 也不给误判空间。 */
-const HARD_LOCAL = /(本地|本机|这台手机|手机上跑|diffusion|stable\s?diffusion|comfyui|sd\s?模型|本地模型|本地大模型|大模型推理|llm\s?推理|训练模型|微调|渲染|4k|8k)/i;
-/** 但如果是「写/讲解/比较」这类纯文本请求，不算 —— 写代码是第一档。 */
+/** 明显属于「本机跑不了但云端能替代」的工作 → 第二档 */
+const TIER2_HINT = /(本地|本机).{0,20}(生图|出图|图片|画|视频|diffusion|sd)/i;
+/** 属于「严重建议别在本机做」的工作 → 第三档 */
+const HARD_LOCAL = /(本地大模型|大模型推理|llm\s?推理|训练模型|微调|4k|8k|渲染|masscan|全端口|扫\s*\/16)/i;
+/** 纯文本请求（写代码、讲解）不算执行类任务 */
 const WRITE_ONLY = /(写|实现|示例|代码|脚本|教程|怎么|如何|解释|原理|区别|对比|review|阅读)/i;
 
-/** 关键词直判。命中返回 verdict，否则返回 null 交给 LLM。 */
+/**
+ * 关键词直判，不花 token。
+ *   · 有替代方案的（本地生图/生视频）→ 第二档：本机能跑但要换路，问一次就够
+ *   · 会卡死设备的（本地大模型、4K 渲染、大网段扫描）→ 第三档：每次都提醒
+ */
 function hardTier(text) {
-  if (!HARD_LOCAL.test(text)) return null;
   if (WRITE_ONLY.test(text)) return null;
-  return {
-    tier: 3,
-    work: "本地推理/渲染类任务",
-    why: "手机没有 GPU，单进程内存 2–4 GB，本地跑模型会直接 OOM 或被系统杀掉，表现为 App 闪退或手机卡死",
-    alt: "改走云端 API（要联网、走流量），或到电脑上做"
-  };
+  if (HARD_LOCAL.test(text)) {
+    return {
+      tier: 3,
+      work: "本机扛不住的推理/渲染类任务",
+      why: "手机没有 GPU，单进程内存 2–4 GB，真跑起来会 OOM 或被系统杀掉，表现是 App 闪退或手机卡死",
+      alt: "到电脑上做；或用云端接口只做能做的部分"
+    };
+  }
+  if (TIER2_HINT.test(text)) {
+    return {
+      tier: 2,
+      work: "本地生图/生视频",
+      why: "本机没有推理框架和 GPU，本地出图会吃掉几 GB 内存直接被系统杀掉",
+      alt: "改走云端生图接口：几十秒出图，要联网走流量，请求里带 nologo=true 可去水印"
+    };
+  }
+  return null;
 }
 
 /** 从 messages 里抠出用户文本。 */
@@ -118,8 +134,8 @@ export function apply(ctx, config = {}) {
 
   /** sessionId → 已判过的 turn */
   const judgedTurn = new Map();
-  /** 已点过「知悉」的会话 → 下一次 pre-step 直接放行，用完即删（一次性通行证） */
-  const passNextTurn = new Set();
+  /** 已确认过第二档的会话（同会话第二档不再追问；第三档不受影响） */
+  const acked = new Set();
 
   function log(msg) {
     try {
@@ -186,43 +202,29 @@ export function apply(ctx, config = {}) {
 
   async function askUser(agent, signal, verdict) {
     const third = verdict.tier === 3;
-    const requiresSecondSend = verdict.tier >= cfg.secondSendAtOrAbove;
-
-    const tail = requiresSecondSend
-      ? [
-          "",
-          "点「我已知悉」不会立刻执行 —— 本轮就此停下。",
-          "你需要自己在聊天框里再发一条指令（例如「执行」），才会真的开始。",
-          "这样等于多给你一次反悔的机会。"
-        ]
-      : ["", "点「继续执行」后本轮就会开始跑。"];
-
     const answer = await ctx.userQuestions.ask({
       agent,
       signal,
       questions: [
         {
           id: "phone-armor-tier",
-          header: third ? "⛔ 第三档 · 本机跑不了" : "⚠ 第二档 · 会烫会卡",
+          header: third ? "⛔ 第三档 · 强烈建议别在本机做" : "⚠ 第二档 · 本机得换条路",
           question: verdict.work || "这条指令",
           detail: [
             `判断：${verdict.why}`,
             `换路径：${verdict.alt}`,
             "",
             third
-              ? "在本机执行大概率导致 App 被杀、手机卡死或过热。能云端做的可以改走云端，只能本地的建议到电脑上做。"
-              : "在本机执行会持续发热，长任务可能被系统回收。建议改到电脑上做。",
-            ...tail
+              ? "在本机执行大概率导致 App 被杀或手机卡死。第三档每次都会提醒你。"
+              : "第二档在本会话内只问这一次，之后同类任务直接放行。",
+            "",
+            "点「我知道了」之后，我会先把风险和替代方案说清楚、停在这里等你，",
+            "不会自己动手 —— 你回一句「继续」我再开始。"
           ].join("\n"),
-          options: requiresSecondSend
-            ? [
-                { label: "我已知悉", description: "本轮停下，我稍后自己再发指令执行" },
-                { label: "取消", description: "不做了，我换个做法" }
-              ]
-            : [
-                { label: "继续执行", description: "我已知悉风险，现在就跑" },
-                { label: "取消", description: "不做了，我换个做法" }
-              ],
+          options: [
+            { label: "我知道了", description: "先停下，把选择权给我" },
+            { label: "取消", description: "这条不做了" }
+          ],
           multiSelect: false
         }
       ]
@@ -230,8 +232,7 @@ export function apply(ctx, config = {}) {
 
     const item = answer?.answers?.find((a) => a.id === "phone-armor-tier");
     const selected = (item?.selected ?? []).map(String);
-    const acknowledged = selected.some((s) => s.includes("知悉") || s.includes("继续"));
-    return { acknowledged, requiresSecondSend };
+    return selected.some((s) => s.includes("取消"));
   }
 
   ctx.on("agent/pre-step", async (payload, next) => {
@@ -241,14 +242,6 @@ export function apply(ctx, config = {}) {
     if (!agent || !Array.isArray(messages) || messages.length === 0) return next();
 
     const sessionId = agent.session?.id ?? "";
-
-    // 上一轮点过「知悉」→ 这一次是用户亲手再发的指令，放行（通行证用完即删）
-    if (passNextTurn.has(sessionId)) {
-      passNextTurn.delete(sessionId);
-      judgedTurn.set(sessionId, turn);
-      log("检测到用户二次发起，放行");
-      return next();
-    }
 
     // 同一轮只判一次
     if (judgedTurn.get(sessionId) === turn) return next();
@@ -260,27 +253,34 @@ export function apply(ctx, config = {}) {
     const verdict = hardTier(text) || (await grade(text, modelSelection, signal));
     if (!verdict || verdict.tier < cfg.askAtOrAbove) return next();
 
-    let result;
+    // 第二档：本会话确认过一次就不再追问（第三档每次都要提醒，用户明确要求）
+    if (verdict.tier === 2 && acked.has(sessionId)) {
+      log(`第二档已确认过，直接放行：${verdict.work}`);
+      return next();
+    }
+
+    let cancelled = false;
     try {
-      result = await askUser(agent, signal, verdict);
+      cancelled = await askUser(agent, signal, verdict);
     } catch (error) {
       log(`弹窗失败（放行）：${error?.message || error}`);
       return next();
     }
 
-    if (!result.acknowledged) {
+    if (cancelled) {
       log(`用户取消：第 ${verdict.tier} 档 —— ${verdict.work}`);
       return { kind: "reject" };
     }
 
-    if (result.requiresSecondSend) {
-      // 关键：知悉 ≠ 执行。留下通行证，本轮停下，等用户自己再发一条。
-      passNextTurn.add(sessionId);
-      log(`用户知悉（第 ${verdict.tier} 档）—— 本轮不执行，等用户再次发起：${verdict.work}`);
-      return { kind: "reject" };
+    if (verdict.tier === 2) {
+      acked.add(sessionId);
+      log(`用户知悉（第二档）—— 本会话不再追问：${verdict.work}`);
+    } else {
+      log(`用户知悉（第三档）—— 每次都会提醒，但不拦截：${verdict.work}`);
     }
 
-    log(`用户确认继续（第 ${verdict.tier} 档）—— ${verdict.work}`);
+    // 关键：不 reject。会话完整保留，用户下一句「继续」能接上；
+    // 具体停不停由 TIER-RULES 约束主 agent 自己处理。
     return next();
   });
 }
