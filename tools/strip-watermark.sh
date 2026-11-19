@@ -60,11 +60,30 @@ PY
 fi
 
 if [ "$ok" = 0 ]; then
+  # 三个后端都没有，尝试装最轻的 python3-pil（约 5 MB）
+  printf '没有可用的图像后端，尝试自动安装 python3-pil ...\n'
+  if command -v apt-get >/dev/null 2>&1; then
+    ( apt-get update -qq && apt-get install -y -qq python3-pil ) >/dev/null 2>&1
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import PIL' 2>/dev/null; then
+      python3 - "$IN" "$OUT" "$PCT" <<'PY' && ok=1
+import sys
+from PIL import Image
+src, dst, pct = sys.argv[1], sys.argv[2], float(sys.argv[3])
+im = Image.open(src)
+w, h = im.size
+im.crop((0, 0, w, int(h * (100 - pct) / 100))).save(dst, quality=95)
+PY
+      BACKEND="python3+Pillow(新装)"
+    fi
+  fi
+fi
+
+if [ "$ok" = 0 ]; then
   printf '\033[1;31m没有可用的图像处理后端\033[0m\n' >&2
-  printf '装一个就行（PRoot Ubuntu）：\n' >&2
-  printf '  apt update && apt install -y ffmpeg        # 约 60 MB\n' >&2
+  printf '手动装一个（PRoot Ubuntu）：\n' >&2
+  printf '  apt update && apt install -y python3-pil   # 约 5 MB，最小\n' >&2
   printf '  apt update && apt install -y imagemagick   # 约 30 MB\n' >&2
-  printf '  apt update && apt install -y python3-pil   # 约 5 MB（最小）\n' >&2
+  printf '  apt update && apt install -y ffmpeg        # 约 60 MB\n' >&2
   exit 1
 fi
 

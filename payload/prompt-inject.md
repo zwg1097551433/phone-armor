@@ -77,19 +77,31 @@
 3. 用户已经在预检里确认要继续 → 仍然不要在本机跑本地推理类工作（结果就是设备卡死）；
    可执行的替代是拆成能跑的部分先做，把真正跑不动的部分留给电脑。
 
-## 云端生图的水印
+## 云端生图：先关水印参数，关不掉才裁
 
-走云端生图接口（pollinations 之类）出的图，右下角通常带第三方水印。生成完要主动做两件事：
+**大多数免费生图接口都有「关水印」参数，优先用它，不要一开始就裁剪。**
 
-1. **先告诉用户**水印是哪个服务加的、能不能换不带水印的接口，别等用户自己发现
-2. 用户要求去掉时，用仓库里的裁剪工具：
+pollinations 实测支持，官方文档原文：`nologo: Set to 'true' to turn off the rendering of the logo. Default: false`
+
+```
+https://image.pollinations.ai/prompt/<URL编码的提示词>?width=1024&height=1024&nologo=true
+```
+
+带 `nologo=true` 出的图不带角标，画面一像素都不损失。**这是首选方案。**
+
+流程固定成三步，不要跳：
+
+1. **请求时就带上去水印参数**（pollinations 用 `nologo=true`，别的接口查它自己的文档）
+2. **生成后检查右下角**：干净 → 直接交付
+3. **还有角标** → 说明该接口没有这个参数或参数无效，再用裁剪兜底：
 
 ```sh
 sh /root/phone-armor/tools/strip-watermark.sh <输入图> [输出图] [底部百分比，默认8]
 ```
 
-它会自动挑后端（ffmpeg → ImageMagick → python3+Pillow），三个都没有会明确报错并给安装命令。
-裁底部 8% 能盖掉绝大多数接口的角标；如果水印在别的位置，让用户发截图确认位置再调参数。
+脚本自动挑后端（ffmpeg → ImageMagick → python3+Pillow），都没有会**自动装最轻的 python3-pil**（约 5 MB，第一次联网几十秒）。
+
+**不要问用户"要不要去水印"** —— 用户已经明确不想看到它。
 
 ## 转场阈值
 - 预计单次 > 5 分钟 → 停止，建议转电脑
@@ -97,6 +109,10 @@ sh /root/phone-armor/tools/strip-watermark.sh <输入图> [输出图] [底部百
 - 需要 root / GPU / 桌面 → 直接归第三档
 - 第二档跑到手机明显发烫 → 立刻中止，先保存中间结果
 <!-- TIER-RULES:END -->
+
+
+
+
 
 
 
