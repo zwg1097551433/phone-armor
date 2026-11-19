@@ -1,0 +1,27 @@
+{
+  "name": "phone-armor-settings",
+  "version": "1.0.0",
+  "description": "手机强化设置页：在 DSH 设置面板里开关外部生图通道与提示词强化包",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "license": "MIT",
+  "files": [
+    "lib/index.js",
+    "lib/client.js"
+  ]
+}

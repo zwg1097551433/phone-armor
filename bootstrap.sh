@@ -107,7 +107,7 @@ fi
 # ---------------------------------------------------------------- 4. 拉文件
 hr
 say "[3] 下载组件"
-SMALL="preflight/package.json preflight/lib/index.js preflight/install-preflight.sh tier-gate/package.json tier-gate/lib/index.js tier-gate/lib/client.js tier-gate/install-tier-gate.sh guard/guard.sh guard/guard.conf guard/guard-install.sh payload/prompt-inject.md"
+SMALL="preflight/package.json preflight/lib/index.js preflight/install-preflight.sh phone-armor-settings/package.json phone-armor-settings/lib/index.js phone-armor-settings/lib/client.js phone-armor-settings/install-settings.sh tier-gate/package.json tier-gate/lib/index.js tier-gate/lib/client.js tier-gate/install-tier-gate.sh guard/guard.sh guard/guard.conf guard/guard-install.sh payload/prompt-inject.md prompt/boost-nsfw.md"
 
 # armor.sh 必须先装且必须是新版：用内容标记校验，挡住 CDN 缓存的旧文件
 get_checked armor.sh "is_aibase" armor.sh || die "armor.sh 下载失败或拿到的一直是旧版本。换源：ARMOR_MIRROR=https://raw.githubusercontent.com/$OWNER/$REPO/$BRANCH sh bootstrap.sh"
@@ -156,6 +156,20 @@ if [ "${ARMOR_SKIP_PREFLIGHT:-0}" != "1" ]; then
   [ "$RC2" = 0 ] || say "  [!] 预检没装成（rc=$RC2），破甲本体不受影响"
 else
   say "[6] 预检 · 跳过（ARMOR_SKIP_PREFLIGHT=1）"
+fi
+
+if [ "${ARMOR_SKIP_SETTINGS_UI:-0}" != "1" ]; then
+  hr
+  say "[6.5] 设置页 · 在 DSH 设置面板里加「手机强化」开关"
+  chmod +x phone-armor-settings/install-settings.sh 2>/dev/null
+  # 强化包正文由安装脚本从 ../prompt/boost-nsfw.md 拷过去，这里先铺好目录结构
+  mkdir -p phone-armor-settings/prompt 2>/dev/null
+  [ -f prompt/boost-nsfw.md ] && cp -f prompt/boost-nsfw.md phone-armor-settings/prompt/boost-nsfw.md 2>/dev/null
+  PURGE_PROFILE="${PURGE_PROFILE:-web}" DSH_NODE="$N" sh phone-armor-settings/install-settings.sh install
+  RC4=$?
+  [ "$RC4" = 0 ] || say "  [!] 设置页没装成（rc=$RC4），不影响核心功能"
+else
+  say "[6.5] 设置页 · 跳过（ARMOR_SKIP_SETTINGS_UI=1）"
 fi
 
 if [ "${ARMOR_WITH_TIER_GATE:-0}" = "1" ]; then
