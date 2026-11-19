@@ -303,6 +303,7 @@ do_install() {
 }
 TUNEEOF
     say "[6.5] tuning.json 已写入（injectPosition=both / refusalRetry=true / boost=true）"
+    say "      ⚠ 插件在 apply() 里只读一次 tuning —— 必须重启引擎才生效"
   else
     say "[6.5] tuning.json 已存在，保留用户配置（$TUNE）"
   fi
