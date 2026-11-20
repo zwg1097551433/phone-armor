@@ -107,7 +107,7 @@ fi
 # ---------------------------------------------------------------- 4. 拉文件
 hr
 say "[3] 下载组件"
-SMALL="preflight/package.json preflight/lib/index.js preflight/install-preflight.sh phone-armor-settings/package.json phone-armor-settings/lib/index.js phone-armor-settings/lib/client.js phone-armor-settings/install-settings.sh tier-gate/package.json tier-gate/lib/index.js tier-gate/lib/client.js tier-gate/install-tier-gate.sh guard/guard.sh guard/guard.conf guard/guard-install.sh payload/prompt-inject.md prompt/boost-nsfw.md"
+SMALL="checkup.sh preflight/package.json preflight/lib/index.js preflight/install-preflight.sh phone-armor-settings/package.json phone-armor-settings/lib/index.js phone-armor-settings/lib/client.js phone-armor-settings/install-settings.sh tier-gate/package.json tier-gate/lib/index.js tier-gate/lib/client.js tier-gate/install-tier-gate.sh guard/guard.sh guard/guard.conf guard/guard-install.sh payload/prompt-inject.md prompt/boost-nsfw.md"
 
 # armor.sh 必须先装且必须是新版：用内容标记校验，挡住 CDN 缓存的旧文件
 get_checked armor.sh "is_aibase" armor.sh || die "armor.sh 下载失败或拿到的一直是旧版本。换源：ARMOR_MIRROR=https://raw.githubusercontent.com/$OWNER/$REPO/$BRANCH sh bootstrap.sh"
