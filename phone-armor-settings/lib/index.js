@@ -185,7 +185,14 @@ export function apply(ctx) {
         }
 
         if (req.method === "GET") {
-          return send(res, 200, { ok: true, modules: readModules(), detect: detect() });
+          // 一次返回全部：模块状态 + 环境探测 + 生图凭据。
+          // 客户端只发一个请求，打开设置页少一次往返。
+          return send(res, 200, {
+            ok: true,
+            modules: readModules(),
+            detect: detect(),
+            conf: publicGenConf()
+          });
         }
 
         if (req.method === "POST") {
@@ -215,6 +222,7 @@ export function apply(ctx) {
             ok: true,
             modules: next,
             detect: detect(),
+            conf: publicGenConf(),
             boost: boostResult,
             note: boostResult ? "提示词变化需重启引擎才生效" : undefined
           });

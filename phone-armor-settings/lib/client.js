@@ -82,7 +82,15 @@ window.__ModuleLoader__.load({
 			gearDot: { width: "6px", height: "6px", borderRadius: "50%", background: "#c9cfd8" },
 			gearDotOn: { background: "#34a853" },
 
-			overlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 2147482000, background: "#ffffff", display: "flex", flexDirection: "column", boxSizing: "border-box" },
+			overlay: {
+				position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+				zIndex: 2147482000, background: "#ffffff",
+				display: "flex", flexDirection: "column", boxSizing: "border-box",
+				// 移动端渲染优化：提升为独立合成层，避免全屏重排拖慢打开速度
+				contain: "layout paint",
+				willChange: "transform",
+				transform: "translateZ(0)"
+			},
 			sheet: { width: "100%", height: "100%", display: "flex", flexDirection: "column", background: "#ffffff" },
 			sheetHead: { flexShrink: 0, padding: "14px 16px 12px", paddingTop: "max(14px, env(safe-area-inset-top))", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #eef1f5" },
 			sheetTitle: { fontSize: "16px", fontWeight: 700, color: "#111418" },
@@ -117,8 +125,8 @@ window.__ModuleLoader__.load({
 		function useModules() {
 			const [state, setState] = react.useState(() => {
 				const cached = lsRead(LS_MODULES);
-				if (cached && cached.modules) return { modules: cached.modules, detect: cached.detect || {} };
-				return { modules: { core: true, ext: false, boost: false }, detect: {} };
+				if (cached && cached.modules) return { modules: cached.modules, detect: cached.detect || {}, conf: cached.conf || null };
+				return { modules: { core: true, ext: false, boost: false }, detect: {}, conf: null };
 			});
 			const [busy, setBusy] = react.useState("");
 			const [msg, setMsg] = react.useState(null);
@@ -128,7 +136,7 @@ window.__ModuleLoader__.load({
 					const r = await fetch("/phone-armor/modules", { headers: { Accept: "application/json" } });
 					const j = await r.json();
 					if (j.ok) {
-						const next = { modules: j.modules, detect: j.detect || {} };
+						const next = { modules: j.modules, detect: j.detect || {}, conf: j.conf || null };
 						lsWrite(LS_MODULES, next);
 						setState(next);
 					}
@@ -150,7 +158,7 @@ window.__ModuleLoader__.load({
 					});
 					const j = await r.json();
 					if (j.ok) {
-						const next = { modules: j.modules, detect: j.detect || {} };
+						const next = { modules: j.modules, detect: j.detect || {}, conf: j.conf || state.conf };
 						lsWrite(LS_MODULES, next);
 						setState(next);
 						setMsg({ ok: true, text: "已保存" + (j.note ? "（" + j.note + "）" : "") });
@@ -167,23 +175,18 @@ window.__ModuleLoader__.load({
 			return { state, busy, msg, save };
 		}
 
-		function useGenConf() {
+		function useGenConf(seed) {
+			// 初始值来自 localStorage；服务端数据由 useModules 一起带回来，不再单独请求
 			const [conf, setConf] = react.useState(() => lsRead(LS_GEN) || { endpoint: "", model: "", format: "openai", hasKey: false, keyHint: "" });
 			const [busy, setBusy] = react.useState(false);
 			const [msg, setMsg] = react.useState(null);
 
-			const load = react.useCallback(async () => {
-				try {
-					const r = await fetch("/phone-armor/genconf", { headers: { Accept: "application/json" } });
-					const j = await r.json();
-					if (j.ok) {
-						lsWrite(LS_GEN, j.conf);
-						setConf(j.conf);
-					}
-				} catch { /* 静默 */ }
-			}, []);
-
-			react.useEffect(() => { load(); }, [load]);
+			react.useEffect(() => {
+				if (seed && seed.endpoint !== undefined) {
+					lsWrite(LS_GEN, seed);
+					setConf(seed);
+				}
+			}, [seed]);
 
 			async function save(body) {
 				setBusy(true);
@@ -314,7 +317,7 @@ window.__ModuleLoader__.load({
 		/** ① 网页版设置面板 */
 		function PhoneArmorPanel() {
 			const mod = useModules();
-			const gen = useGenConf();
+			const gen = useGenConf(mod.state.conf);
 			return h("div", { style: S.wrap }, h(SettingsBody, { mod, gen }));
 		}
 
@@ -322,7 +325,7 @@ window.__ModuleLoader__.load({
 		function GearEntry() {
 			const [open, setOpen] = react.useState(false);
 			const mod = useModules();
-			const gen = useGenConf();
+			const gen = useGenConf(mod.state.conf);
 			const m = mod.state.modules || {};
 			const anyOn = !!m.ext || !!m.boost;
 
