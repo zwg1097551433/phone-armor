@@ -10,5 +10,6 @@
 payload/* -text
 
 *.tgz binary
+*.xlsx binary
 *.png binary
 *.jpg binary
