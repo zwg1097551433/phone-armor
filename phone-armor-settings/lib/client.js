@@ -288,6 +288,16 @@ window.__ModuleLoader__.load({
 				}, m.ext ? h(GenConfForm, { gen }) : null),
 
 				h(Card, {
+					title: "注入模式",
+					badge: d.injectMode === "core" ? "精简（仅 L1）" : "完整（L1+L2）",
+					badgeOn: d.injectMode === "core",
+					desc: d.injectMode === "core"
+						? "当前只有执行纪律（身份/多轮/输出/意图/边界词），不含手机能力边界。最接近原版行为。"
+						: "执行纪律 + 手机能力边界（三档评级、转场阈值、水印处理）。切换需在终端执行命令。",
+					right: null
+				}),
+
+				h(Card, {
 					title: "提示词强化包",
 					badge: m.boost ? "已开启" : "未开启",
 					badgeOn: m.boost,

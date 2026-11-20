@@ -16,13 +16,28 @@ set -u
 
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # payload/ 布局（git 仓库）与同目录布局（手工传包）都支持
-TGZ=""; INJ=""
+TGZ=""
 for c in "$DIR/payload/dsh-purge-community-1.6.91.tgz" "$DIR/dsh-purge-community-1.6.91.tgz"; do
   [ -f "$c" ] && { TGZ="$c"; break; }
 done
-for c in "$DIR/payload/prompt-inject.md" "$DIR/prompt-inject.md"; do
-  [ -f "$c" ] && { INJ="$c"; break; }
-done
+
+# 注入分级：
+#   full（默认）= 破甲原文 + L1 核心纪律 + L2 能力边界
+#   core        = 破甲原文 + L1 核心纪律（去掉能力边界，最接近原版行为）
+INJ_MODE="${ARMOR_INJECT:-full}"
+INJ=""
+if [ "$INJ_MODE" = "core" ]; then
+  for c in "$DIR/payload/inject-core.md"; do
+    [ -f "$c" ] && { INJ="$c"; break; }
+  done
+  [ -n "$INJ" ] || INJ_MODE=full
+fi
+if [ "$INJ_MODE" != "core" ]; then
+  INJ_MODE=full
+  for c in "$DIR/payload/prompt-inject.md" "$DIR/prompt-inject.md"; do
+    [ -f "$c" ] && { INJ="$c"; break; }
+  done
+fi
 SHA="ae22bb7d1ac1e055102c8fbd24cf2eedc282a94bfa3fb09e7ab91226fc033058"
 VER="1.6.91"
 ENGINE_EXPECT="0.2.2-rc.1"
@@ -134,6 +149,7 @@ banner() {
     say "  引擎版本   ${EV:-读取失败}（本包按 $ENGINE_EXPECT 校准，最低 $ENGINE_MIN）"
     if writable "$AI"; then say "  宿主可写性  ✓ 可写"; else say "  宿主可写性  ✗ 只读（apply 打不进去）"; fi
   fi
+  say "  注入模式   $INJ_MODE（$([ "$INJ_MODE" = "core" ] && echo "仅核心纪律 L1" || echo "L1 + 能力边界 L2")）"
   say "  插件目录   $DEST"
 }
 

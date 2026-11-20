@@ -127,8 +127,12 @@ function detect() {
   let injectSize = 0;
   try { injectSize = fs.statSync(injectFile()).size; } catch {}
   let boostMerged = false;
+  let injectMode = "unknown";
   try {
-    boostMerged = fs.readFileSync(injectFile(), "utf8").includes(BOOST_BEGIN);
+    const text = fs.readFileSync(injectFile(), "utf8");
+    boostMerged = text.includes(BOOST_BEGIN);
+    // full 版含「本机能力边界」整段；core 版只有执行纪律
+    injectMode = text.includes("本机能力边界") ? "full" : "core";
   } catch {}
 
   return {
@@ -137,6 +141,7 @@ function detect() {
     guardInstalled: has("/opt/phone-armor/guard.sh"),
     genConfigExists: has(path.join(home, "..", ".phone-armor", "gen.conf")) || has(path.join(paDir(), "gen.conf")),
     injectSize,
+    injectMode,
     boostMerged,
     dshHome: home
   };
