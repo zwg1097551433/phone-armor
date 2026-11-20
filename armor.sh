@@ -191,7 +191,7 @@ do_status() {
   [ -f "$DEST/bin/dsh-purge.js" ] || die "未安装：$DEST 不存在（先跑 install）"
 
   hr
-  say "手机强化自检"
+  say "功能强化自检"
   say "  （只读：不修改任何文件）"
   hr
 

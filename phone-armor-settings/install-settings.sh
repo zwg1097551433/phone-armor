@@ -1,11 +1,11 @@
 #!/bin/sh
-# install-settings.sh — 设置页插件（手机强化）的安装 / 卸载 / 状态
+# install-settings.sh — 设置页插件（功能强化）的安装 / 卸载 / 状态
 #
 #   sh install-settings.sh install     装（拷插件 + 放强化包 + 注册）
 #   sh install-settings.sh uninstall   卸
 #   sh install-settings.sh status      看状态
 #
-# 装完后：设置面板里会多一个「手机强化」分节，三个开关。
+# 装完后：设置面板里会多一个「功能强化」分节，三个开关。
 # 不想装也不影响核心功能 —— 这个插件只是给可选模块一个图形开关。
 set -u
 
@@ -119,7 +119,7 @@ JSONEOF
   hr
   say "装好了。回 App：设置 → 本机引擎 → 停止 → 启动。"
   say ""
-  say "重启后进设置面板，会看到「手机强化」分节："
+  say "重启后进设置面板，会看到「功能强化」分节："
   say "  核心            ✅ 必装，不可关"
   say "  外部生图通道     ⬜ 默认关"
   say "  提示词强化包     ⬜ 默认关"

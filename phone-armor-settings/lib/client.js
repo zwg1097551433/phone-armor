@@ -3,7 +3,7 @@
  *
  * 两处注册：
  *   ① settings.section        网页版设置面板
- *   ② conversation.input.dock App 里输入框上方「手机强化」，点开全屏设置页（Portal 到 body）
+ *   ② conversation.input.dock App 里输入框上方「功能强化」，点开全屏设置页（Portal 到 body）
  *
  * 页面内容：
  *   · 核心（只读）
@@ -332,7 +332,7 @@ window.__ModuleLoader__.load({
 			const panel = h("div", { style: S.overlay, role: "dialog", "aria-modal": "true" },
 				h("div", { style: S.sheet },
 					h("div", { style: S.sheetHead },
-						h("span", { style: S.sheetTitle }, "手机强化"),
+						h("span", { style: S.sheetTitle }, "功能强化"),
 						h("button", { style: S.close, onClick: () => setOpen(false) }, "关闭")
 					),
 					h("div", { style: S.sheetBody }, h(SettingsBody, { mod, gen }))
@@ -340,9 +340,9 @@ window.__ModuleLoader__.load({
 			);
 
 			return h(react.Fragment, null,
-				h("button", { style: S.gear, onClick: () => setOpen(true), title: "手机强化设置" },
+				h("button", { style: S.gear, onClick: () => setOpen(true), title: "功能强化设置" },
 					h("span", { style: { ...S.gearDot, ...(anyOn ? S.gearDotOn : {}) } }),
-					"手机强化"
+					"功能强化"
 				),
 				open ? (createPortal && document && document.body ? createPortal(panel, document.body) : panel) : null
 			);
@@ -350,7 +350,7 @@ window.__ModuleLoader__.load({
 
 		function apply(ctx) {
 			ctx.slots.inject("settings.section", () =>
-				ctx.slots.register({ name: "settings.section", id: "phone-armor", order: 60, label: () => "手机强化" }, PhoneArmorPanel)
+				ctx.slots.register({ name: "settings.section", id: "phone-armor", order: 60, label: () => "功能强化" }, PhoneArmorPanel)
 			);
 			ctx.slots.inject("conversation.input.dock", () =>
 				ctx.slots.register({ name: "conversation.input.dock", id: "phone-armor-gear", order: 5 }, GearEntry)

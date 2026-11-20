@@ -160,7 +160,7 @@ fi
 
 if [ "${ARMOR_SKIP_SETTINGS_UI:-0}" != "1" ]; then
   hr
-  say "[6.5] 设置页 · 在 DSH 设置面板里加「手机强化」开关"
+  say "[6.5] 设置页 · 在 DSH 设置面板里加「功能强化」开关"
   chmod +x phone-armor-settings/install-settings.sh 2>/dev/null
   # 强化包正文由安装脚本从 ../prompt/boost-nsfw.md 拷过去，这里先铺好目录结构
   mkdir -p phone-armor-settings/prompt 2>/dev/null
